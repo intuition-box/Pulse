@@ -1,43 +1,48 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useChainId, usePublicClient, useSwitchChain, useWalletClient } from "wagmi";
 
 import { intuitionTestnet } from "@/lib/chain";
 import { normalizeLabelForChain } from "@/lib/format/normalizeLabel";
+import { labels } from "@/lib/vocabulary";
 
 import {
+  buildDerivedTripleDraftsFromApi,
   buildNestedDraftsFromApi,
-  buildNestedRefLabels,
+  makeDraftId,
+  buildNestedRefLabelsFromState,
   buildProposalDraftsFromApi,
+  computeMainRef,
+  type ApiDerivedTriple,
   type ApiProposal,
   type ApprovedProposalWithRole,
   type DepositState,
+  type DerivedTripleDraft,
   type ExtractionContext,
   type ExtractionJobSummary,
-  type NestedActions,
+  type MainRef,
   type NestedProposalDraft,
   type ProposalActions,
   type DraftActions,
+  type DraftPost,
   type ProposalDraft,
-  type ProposalSummary,
   type PublishSummary,
   type Stance,
   type TripleRole,
   type TxPlanItem,
   type UseExtractionFlowParams,
-} from "../extractionTypes";
+} from "../extraction";
 import { useSessionAuth } from "./useSessionAuth";
 import { useDraftPosts } from "./useDraftPosts";
 import { useOnchainPublish } from "./useOnchainPublish";
 import { useProposalCrud } from "./useProposalCrud";
 import { useTripleResolution } from "./useTripleResolution";
 
-// Chain normalization: use normalizeLabelForChain from @/lib/normalizeLabel
 const normalizeText = normalizeLabelForChain;
 
-export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTermId, themeAtomTermId, onPublishSuccess }: UseExtractionFlowParams) {
+export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTermId, themeAtomTermId, onPublishSuccess, themeTitle, parentClaim }: UseExtractionFlowParams) {
   const router = useRouter();
   const { isConnected, address } = useAccount();
   const chainId = useChainId();
@@ -50,9 +55,8 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
   const [extractionJob, setExtractionJob] = useState<ExtractionJobSummary | null>(null);
   const [proposals, setProposals] = useState<ProposalDraft[]>([]);
   const [nestedProposals, setNestedProposals] = useState<NestedProposalDraft[]>([]);
-  // Map stableKey → "S · P · O" label for nested edge TermRef resolution
-  const [nestedRefLabels, setNestedRefLabels] = useState<Map<string, string>>(new Map());
-  const [txPlan, setTxPlan] = useState<TxPlanItem[]>([]);
+  const [derivedTriples, setDerivedTriples] = useState<DerivedTripleDraft[]>([]);
+  const [, setTxPlan] = useState<TxPlanItem[]>([]);
   const [publishedPosts, setPublishedPosts] = useState<PublishSummary[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
@@ -61,28 +65,40 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
 
   const { ensureSession } = useSessionAuth({ setMessage });
 
-  // ─── Sub-hook: draft posts ─────────────────
   const {
     draftPosts, setDraftPosts, initializeDrafts, allDraftsHaveMain,
-    isSplit, splitDrafts, mergeToDraft,
-    updateDraftStance, updateDraftBody, resetDraftBody,
+    splitDrafts, mergeToDraft,
+    updateDraftStance, updateDraftBody, resetDraftBody, removeDraft,
   } = useDraftPosts(proposals);
 
   const stanceRequired = Boolean(parentPostId);
   const normalizedInput = normalizeText(inputText);
   const normalizedStance = stanceRequired ? (stance as Stance) : null;
 
+  const mainRefByDraft = useMemo<Map<string, MainRef | null>>(
+    () => new Map(draftPosts.map((d) => [d.id, computeMainRef(d.mainProposalId, proposals, nestedProposals)])),
+    [draftPosts, proposals, nestedProposals],
+  );
+
+  const nestedRefLabels = useMemo(
+    () => buildNestedRefLabelsFromState(proposals, nestedProposals, derivedTriples),
+    [proposals, nestedProposals, derivedTriples],
+  );
+
   const approvedEntries = useMemo(
     () =>
-      draftPosts.flatMap((draft) =>
-        draft.proposalIds
+      draftPosts.flatMap((draft) => {
+        const mainRef = mainRefByDraft.get(draft.id);
+        return draft.proposalIds
           .filter((id) => proposals.find((p) => p.id === id)?.status === "approved")
           .map((id) => ({
             proposalId: id,
-            role: (id === draft.mainProposalId ? "MAIN" : "SUPPORTING") as TripleRole,
-          })),
-      ),
-    [draftPosts, proposals],
+            role: (mainRef?.type === "nested"
+              ? "SUPPORTING"
+              : id === draft.mainProposalId ? "MAIN" : "SUPPORTING") as TripleRole,
+          }));
+      }),
+    [draftPosts, proposals, mainRefByDraft],
   );
 
   const contextDirty = Boolean(
@@ -101,99 +117,51 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
       .filter((p): p is ApprovedProposalWithRole => p !== null);
   }, [approvedEntries, proposals]);
 
-  const defaultMainProposalId = draftPosts[0]?.mainProposalId ?? null;
-
-  // Default MAIN proposal (used by existing triple-check effect and deposit flow)
-  const approvedProposal = useMemo(() => {
-    if (defaultMainProposalId) {
-      return approvedProposals.find((p) => p.id === defaultMainProposalId) ?? null;
-    }
-    return approvedProposals.find((p) => p.role === "MAIN") ?? null;
-  }, [approvedProposals, defaultMainProposalId]);
-
-  const approvedProposalId = approvedProposal?.id ?? null;
-
-  const proposalItems = useMemo<ProposalSummary[]>(
-    () =>
-      proposals
-        .filter((proposal) => proposal.status !== "rejected")
-        .map((proposal) => ({
-          id: proposal.id,
-          stableKey: proposal.stableKey || null,
-          sText: proposal.sText,
-          pText: proposal.pText,
-          oText: proposal.oText,
-          status: proposal.status,
-          isDraft: proposal.id.startsWith("draft-"),
-          subjectAtomId: proposal.subjectAtomId,
-          predicateAtomId: proposal.predicateAtomId,
-          objectAtomId: proposal.objectAtomId,
-          matchedIntuitionTripleTermId: proposal.matchedIntuitionTripleTermId ?? null,
-          isDirty:
-            proposal.sText !== proposal.saved.sText ||
-            proposal.pText !== proposal.saved.pText ||
-            proposal.oText !== proposal.saved.oText ||
-            proposal.subjectAtomId !== proposal.saved.subjectAtomId ||
-            proposal.predicateAtomId !== proposal.saved.predicateAtomId ||
-            proposal.objectAtomId !== proposal.saved.objectAtomId,
-          suggestedStance: proposal.suggestedStance,
-          stanceAligned: proposal.stanceAligned,
-          stanceReason: proposal.stanceReason,
-        })),
-    [proposals]
-  );
+  const proposalCount = proposals.filter((p) => p.status !== "rejected").length;
 
   const visibleNestedProposals = useMemo(() => {
-    const activeStableKeys = new Set(
-      proposals
-        .filter((p) => p.status !== "rejected")
-        .map((p) => p.stableKey)
-        .filter(Boolean),
-    );
+    const activeStableKeys = new Set([
+      ...proposals.filter((p) => p.status !== "rejected").map((p) => p.stableKey).filter(Boolean),
+      ...nestedProposals.filter((e) => e.status !== "rejected").map((e) => e.stableKey).filter(Boolean),
+      ...derivedTriples.map((d) => d.stableKey).filter(Boolean),
+    ]);
     return nestedProposals.filter((edge) => {
       if (edge.status === "rejected") return false;
       const subjectOk = edge.subject.type !== "triple" || activeStableKeys.has(edge.subject.tripleKey);
       const objectOk = edge.object.type !== "triple" || activeStableKeys.has(edge.object.tripleKey);
       return subjectOk && objectOk;
     });
-  }, [proposals, nestedProposals]);
+  }, [proposals, nestedProposals, derivedTriples]);
 
-  // All nested edges (including rejected) for StepContext display
   const displayNestedProposals = useMemo(() => {
-    const activeStableKeys = new Set(
-      proposals
-        .filter((p) => p.status !== "rejected")
-        .map((p) => p.stableKey)
-        .filter(Boolean),
-    );
+    const activeStableKeys = new Set([
+      ...proposals.filter((p) => p.status !== "rejected").map((p) => p.stableKey).filter(Boolean),
+      ...nestedProposals.filter((e) => e.status !== "rejected").map((e) => e.stableKey).filter(Boolean),
+      ...derivedTriples.map((d) => d.stableKey).filter(Boolean),
+    ]);
     return nestedProposals.filter((edge) => {
       const subjectOk = edge.subject.type !== "triple" || activeStableKeys.has(edge.subject.tripleKey);
       const objectOk = edge.object.type !== "triple" || activeStableKeys.has(edge.object.tripleKey);
       return subjectOk && objectOk;
     });
-  }, [proposals, nestedProposals]);
+  }, [proposals, nestedProposals, derivedTriples]);
 
-  const nestedActions: NestedActions = {
-    onReject: (nestedId: string) => {
-      setNestedProposals((prev) =>
-        prev.map((edge) => edge.id === nestedId ? { ...edge, status: "rejected" as const } : edge),
-      );
-    },
-    onRestore: (nestedId: string) => {
-      setNestedProposals((prev) =>
-        prev.map((edge) => edge.id === nestedId ? { ...edge, status: "approved" as const } : edge),
-      );
-    },
-  };
+  const updateNestedPredicate = useCallback((nestedId: string, label: string) => {
+    setNestedProposals((prev) =>
+      prev.map((edge) => edge.id === nestedId ? { ...edge, predicate: label } : edge),
+    );
+  }, []);
 
-  // ─── Sub-hook: triple resolution ───────────
-  const resolution = useTripleResolution({
-    proposals,
-    approvedProposal,
-    approvedProposals,
-    address,
-    setDepositState,
-  });
+  const updateNestedAtom = useCallback((nestedId: string, slot: "subject" | "object", label: string) => {
+    setNestedProposals((prev) =>
+      prev.map((edge) => {
+        if (edge.id !== nestedId) return edge;
+        const ref = edge[slot];
+        if (ref.type !== "atom") return edge;
+        return { ...edge, [slot]: { ...ref, label } };
+      }),
+    );
+  }, []);
 
   async function runExtraction(): Promise<{ ok: boolean; proposalCount: number }> {
     setMessage(null);
@@ -232,7 +200,21 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
       });
       const data = await response.json();
       if (!response.ok) {
-        setMessage(data.error ?? "Unable to extract proposals.");
+        if (data.rejection) {
+          const code = data.error as string;
+          const messageMap: Record<string, string> = {
+            OFF_TOPIC: labels.rejectionOffTopic,
+            NOT_DEBATABLE: labels.rejectionNotDebatable,
+            GIBBERISH: labels.rejectionGibberish,
+            NO_MAIN_CLAIMS: labels.rejectionNoMainClaims,
+            NO_NEW_INFORMATION: labels.rejectionNoNewInformation,
+            LLM_UNAVAILABLE: labels.rejectionLlmUnavailable,
+            EXTRACTION_FAILED: labels.rejectionExtractionFailed,
+          };
+          setMessage(messageMap[code] ?? "Unable to extract proposals.");
+        } else {
+          setMessage(data.error ?? "Unable to extract proposals.");
+        }
         return fail;
       }
 
@@ -242,9 +224,8 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
       ] as ApiProposal[];
       const newProposals = buildProposalDraftsFromApi(allExtracted, true);
       const newNested = buildNestedDraftsFromApi(allExtracted);
-      const newLabels = buildNestedRefLabels(allExtracted);
+      const newDerived = buildDerivedTripleDraftsFromApi((data.derivedTriples ?? []) as ApiDerivedTriple[]);
 
-      // New schema: "submission" instead of "extractionJob"
       setExtractionJob({
         id: data.submission.id,
         status: data.submission.status,
@@ -254,9 +235,41 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
       });
       setProposals(newProposals);
       setNestedProposals(newNested);
-      setNestedRefLabels(newLabels);
-      const firstProposalId = newProposals.length > 0 ? newProposals[0].id : null;
-      initializeDrafts(normalizedStance, newProposals.map((p) => p.id), firstProposalId, normalizedInput);
+      setDerivedTriples(newDerived);
+
+      const groupMap = new Map<string, string[]>();
+      const groupMain = new Map<string, string>();
+      for (const p of newProposals) {
+        const gk = p.groupKey ?? "0:0";
+        const ids = groupMap.get(gk) || [];
+        ids.push(p.id);
+        groupMap.set(gk, ids);
+        if (p.role === "MAIN") groupMain.set(gk, p.id);
+      }
+
+      if (groupMap.size <= 1) {
+        const mainId = groupMain.values().next().value ?? newProposals[0]?.id ?? null;
+        const mainP = newProposals.find((p) => p.id === mainId);
+        const correctedStance = (mainP?.stanceAligned === false && mainP.suggestedStance)
+          ? mainP.suggestedStance : normalizedStance;
+        const singleBody = mainP?.claimText || mainP?.sentenceText || normalizedInput;
+        initializeDrafts(correctedStance, newProposals.map((p) => p.id), mainId, singleBody);
+      } else {
+        const drafts: DraftPost[] = [...groupMap.entries()].map(([gk, ids], idx) => {
+          const mainId = groupMain.get(gk) ?? ids[0];
+          const mainP = newProposals.find((p) => p.id === mainId);
+          const bodyDefault = mainP?.claimText || mainP?.sentenceText || `${mainP?.sText} ${mainP?.pText} ${mainP?.oText}`;
+          return {
+            id: makeDraftId(idx),
+            stance: mainP?.suggestedStance ?? normalizedStance,
+            mainProposalId: mainId,
+            proposalIds: ids,
+            body: bodyDefault,
+            bodyDefault,
+          };
+        });
+        setDraftPosts(drafts);
+      }
       setTxPlan([]);
       setPublishedPosts([]);
       setExtractionContext({
@@ -273,12 +286,10 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
     }
   }
 
-  // ─── Sub-hook: proposal CRUD ──────────────
   const crud = useProposalCrud({
     proposals,
     setProposals,
     extractionJob,
-    draftPosts,
     setDraftPosts,
     isConnected,
     setMessage,
@@ -286,7 +297,31 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
     ensureSession,
   });
 
-  // ─── Sub-hook: on-chain publish ───────────
+  // Collect extra atom labels from nested edges + derived triples for resolution
+  const extraAtomLabels = useMemo(() => {
+    const labels: string[] = [];
+    for (const ne of visibleNestedProposals) {
+      if (ne.predicate) labels.push(ne.predicate);
+      for (const ref of [ne.subject, ne.object]) {
+        if (ref.type === "atom" && ref.label) labels.push(ref.label);
+      }
+    }
+    for (const dt of derivedTriples) {
+      if (dt.subject) labels.push(dt.subject);
+      if (dt.predicate) labels.push(dt.predicate);
+      if (dt.object) labels.push(dt.object);
+    }
+    return labels;
+  }, [visibleNestedProposals, derivedTriples]);
+
+  const resolution = useTripleResolution({
+    approvedProposals,
+    address,
+    extraAtomLabels,
+    onTripleMatched: crud.setMatchedTripleTermId,
+    onAtomResolved: crud.resolveProposalAtom,
+  });
+
   const publish = useOnchainPublish({
     isConnected,
     address,
@@ -310,6 +345,9 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
     visibleNestedProposals,
     proposals,
     themeAtomTermId: themeAtomTermId ?? null,
+    mainRefByDraft,
+    derivedTriples,
+    parentClaim,
   });
 
   const busy = isExtracting || publish.isPublishing;
@@ -319,10 +357,12 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
     onSave: crud.saveProposal,
     onSelectMain: crud.selectMain,
     onReject: crud.rejectProposal,
-    onSelectReuse: crud.setMatchedTripleTermId,
     onLock: crud.lockProposalAtom,
     onUnlock: crud.unlockProposalAtom,
     onAddDraft: crud.addDraftProposal,
+    onAddTriple: crud.addTripleFromChat,
+    onPropagateAtom: (text, id, label, metrics) => crud.propagateAtomLock(text, id, label, draftPosts, metrics),
+    onSetNewTermLocal: crud.setNewTermLocal,
   };
 
   const draftActions: DraftActions = {
@@ -331,47 +371,34 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
     onStanceChange: updateDraftStance,
     onBodyChange: updateDraftBody,
     onBodyReset: resetDraftBody,
+    onRemove: removeDraft,
   };
 
-  // In reply split mode, every draft with approved proposals must have a stance
-  const allSplitDraftsHaveStance = !stanceRequired || !isSplit || draftPosts.every((d) => {
-    const hasApproved = d.proposalIds.some(
-      (pid) => proposals.find((p) => p.id === pid)?.status === "approved",
-    );
-    return !hasApproved || d.stance !== null;
-  });
-
-  const canAdvanceToSubmit =
-    allDraftsHaveMain &&
-    allSplitDraftsHaveStance &&
-    approvedProposals.length > 0 &&
-    isConnected && chainId === intuitionTestnet.id && !contextDirty && !busy;
+  function handleInputChange(value: string) {
+    setInputText(value);
+    if (message) setMessage(null);
+  }
 
   return {
     inputText,
-    setInputText,
+    setInputText: handleInputChange,
     extractedInputText: extractionContext?.inputText ?? "",
     stance,
     setStance,
     stanceRequired,
     walletConnected: isConnected,
-    onchainReady: Boolean(isConnected && publicClient && walletClient),
     correctChain: chainId === intuitionTestnet.id,
     switchToCorrectChain: publish.switchToCorrectChain,
     extractionJob,
     proposals,
-    nestedProposals,
+    derivedTriples,
     visibleNestedProposals,
     displayNestedProposals,
-    nestedActions,
     nestedRefLabels,
-    proposalItems,
-    approvedProposal,
-    approvedProposalId,
-    defaultMainProposalId,
+    proposalCount,
     draftPosts,
-    approvedEntries,
     approvedProposals,
+    mainRefByDraft,
     message,
     contextDirty,
     busy,
@@ -379,34 +406,27 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
     minDeposit: resolution.minDeposit,
     atomCost: resolution.atomCost,
     tripleCost: resolution.tripleCost,
-    existingTripleId: resolution.existingTripleId,
-    existingTripleStatus: resolution.existingTripleStatus,
-    existingTripleError: resolution.existingTripleError,
-    existingTripleMetrics: resolution.existingTripleMetrics,
     depositState,
     approvedTripleStatuses: resolution.approvedTripleStatuses,
     approvedTripleStatus: resolution.approvedTripleStatus,
     approvedTripleStatusError: resolution.approvedTripleStatusError,
-    tripleSuggestionsByProposal: resolution.tripleSuggestionsByProposal,
-    txPlan,
-    publishedPost: publishedPosts[0] ?? null,
+    semanticSkipped: resolution.semanticSkipped,
+    resolvedAtomMap: resolution.resolvedAtomMap,
     publishedPosts,
     isPublishing: publish.isPublishing,
+    publishStep: publish.publishStep,
     publishError: publish.publishError,
+    resetPublishError: publish.resetPublishError,
     runExtraction,
     proposalActions,
     draftActions,
-    isSplit,
-    canAdvanceToSubmit,
-    updateProposalField: crud.updateProposalField,
-    addDraftProposal: crud.addDraftProposal,
-    saveProposal: crud.saveProposal,
-    selectMain: crud.selectMain,
-    rejectProposal: crud.rejectProposal,
-    lockProposalAtom: crud.lockProposalAtom,
-    unlockProposalAtom: crud.unlockProposalAtom,
-    setMatchedTripleTermId: crud.setMatchedTripleTermId,
     publishOnchain: publish.publishOnchain,
+    themeTitle,
+    themeAtomTermId: themeAtomTermId ?? null,
+    parentClaim,
+    parentMainTripleTermId: parentMainTripleTermId ?? null,
+    updateNestedPredicate,
+    updateNestedAtom,
   };
 }
 

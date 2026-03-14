@@ -7,34 +7,33 @@ import {
   normalizeMain,
   splitIntoDrafts,
   mergeDrafts,
+  makeDraftId,
   type DraftPost,
   type ProposalDraft,
   type Stance,
-} from "../extractionTypes";
+} from "../extraction";
 
 // ─── Params & Return types ────────────────────────────────────────────────
-
 type UseDraftPostsReturn = {
   draftPosts: DraftPost[];
   setDraftPosts: React.Dispatch<React.SetStateAction<DraftPost[]>>;
   initializeDrafts: (stance: Stance | null, proposalIds: string[], mainProposalId?: string | null, bodyDefault?: string) => void;
   resetDrafts: () => void;
   allDraftsHaveMain: boolean;
-  isSplit: boolean;
   splitDrafts: (userStance: Stance | null) => void;
   mergeToDraft: (userStance: Stance | null, inputText?: string) => void;
   updateDraftStance: (draftId: string, stance: Stance) => void;
   updateDraftBody: (draftId: string, body: string) => void;
   resetDraftBody: (draftId: string) => void;
+  removeDraft: (draftId: string) => void;
 };
 
 // ─── Hook ─────────────────────────────────────────────────────────────────
-
 export function useDraftPosts(proposals: ProposalDraft[]): UseDraftPostsReturn {
   const [draftPosts, setDraftPosts] = useState<DraftPost[]>([]);
 
   function initializeDrafts(stance: Stance | null, proposalIds: string[], mainProposalId?: string | null, bodyDefault?: string) {
-    setDraftPosts([normalizeMain(createInitialDraft("draft-0", stance, proposalIds, mainProposalId, bodyDefault))]);
+    setDraftPosts([normalizeMain(createInitialDraft(makeDraftId(0), stance, proposalIds, mainProposalId, bodyDefault))]);
   }
 
   function resetDrafts() {
@@ -64,8 +63,6 @@ export function useDraftPosts(proposals: ProposalDraft[]): UseDraftPostsReturn {
     }
   }
 
-  const isSplit = draftPosts.length > 1;
-
   function splitDraftsHandler(userStance: Stance | null) {
     setDraftPosts((prev) => splitIntoDrafts(prev, proposals, userStance));
   }
@@ -86,6 +83,15 @@ export function useDraftPosts(proposals: ProposalDraft[]): UseDraftPostsReturn {
     setDraftPosts((prev) => prev.map((d) => (d.id === draftId ? { ...d, body: d.bodyDefault } : d)));
   }
 
+  function removeDraft(draftId: string) {
+    setDraftPosts((prev) => {
+      const next = prev.filter((d) => d.id !== draftId);
+      // Never remove the last draft
+      if (next.length === 0) return prev;
+      return next;
+    });
+  }
+
   // Auto-sync body with main triple text (split mode only)
   // When S/P/O changes, update bodyDefault and body (if not manually edited)
   // Uses "adjust state during rendering" pattern (React docs recommended)
@@ -96,7 +102,7 @@ export function useDraftPosts(proposals: ProposalDraft[]): UseDraftPostsReturn {
       const next = draftPosts.map((draft) => {
         const main = proposals.find((p) => p.id === draft.mainProposalId);
         if (!main) return draft;
-        const newBodyDefault = `${main.sText} ${main.pText} ${main.oText}`;
+        const newBodyDefault = main.claimText || main.sentenceText || `${main.sText} ${main.pText} ${main.oText}`;
         if (newBodyDefault === draft.bodyDefault) return draft;
         const bodyWasDefault = draft.body === draft.bodyDefault;
         return {
@@ -111,7 +117,7 @@ export function useDraftPosts(proposals: ProposalDraft[]): UseDraftPostsReturn {
 
   return {
     draftPosts, setDraftPosts, initializeDrafts, resetDrafts, allDraftsHaveMain,
-    isSplit, splitDrafts: splitDraftsHandler, mergeToDraft: mergeToDraftHandler,
-    updateDraftStance, updateDraftBody, resetDraftBody,
+    splitDrafts: splitDraftsHandler, mergeToDraft: mergeToDraftHandler,
+    updateDraftStance, updateDraftBody, resetDraftBody, removeDraft,
   };
 }

@@ -5,76 +5,17 @@ import type { Stance } from "@prisma/client";
 import { prisma } from "@/server/db/prisma";
 import { requireSiweAuth } from "@/server/auth/siwe";
 import { getErrorMessage } from "@/lib/getErrorMessage";
+import { validateSemanticGuard } from "@/app/api/chat/refine/validate";
+import { isValidDraftPost, type DraftPostPayload } from "./validation";
+import { isStanceId } from "@/features/post/ExtractionWorkspace/extraction/idPrefixes";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const MAX_BODY_LENGTH = 5000;
-
-type TripleInput = {
-  proposalId: string;
-  tripleTermId: string;
-  isExisting: boolean;
-  role: "MAIN" | "SUPPORTING";
-};
-
-function isValidTriple(value: unknown): value is TripleInput {
-  if (!value || typeof value !== "object") return false;
-  const t = value as Record<string, unknown>;
-  return (
-    typeof t.proposalId === "string" &&
-    typeof t.tripleTermId === "string" &&
-    typeof t.isExisting === "boolean" &&
-    (t.role === "MAIN" || t.role === "SUPPORTING")
-  );
-}
-
-type NestedTripleInput = {
-  nestedProposalId: string;
-  tripleTermId: string;
-  isExisting: boolean;
-};
-
-function isValidNestedTriple(value: unknown): value is NestedTripleInput {
-  if (!value || typeof value !== "object") return false;
-  const t = value as Record<string, unknown>;
-  return (
-    typeof t.nestedProposalId === "string" &&
-    typeof t.tripleTermId === "string" &&
-    typeof t.isExisting === "boolean"
-  );
-}
-
-type DraftPostPayload = {
-  draftId: string;
-  body: string;
-  stance?: string | null;
-  triples: TripleInput[];
-  nestedTriples?: NestedTripleInput[];
-};
 
 type CreatedPostRecord = {
   post: { id: string; publishedAt: Date | null };
   tripleLinks: Array<{ id: string; termId: string; role: "MAIN" | "SUPPORTING" }>;
 };
-
-const VALID_STANCES = new Set(["SUPPORTS", "REFUTES"]);
-
-function isValidDraftPost(value: unknown): value is DraftPostPayload {
-  if (!value || typeof value !== "object") return false;
-  const d = value as Record<string, unknown>;
-  return (
-    typeof d.draftId === "string" &&
-    typeof d.body === "string" &&
-    d.body.length <= MAX_BODY_LENGTH &&
-    (d.stance === undefined || d.stance === null || (typeof d.stance === "string" && VALID_STANCES.has(d.stance))) &&
-    Array.isArray(d.triples) &&
-    d.triples.length > 0 &&
-    d.triples.every(isValidTriple) &&
-    (d.nestedTriples === undefined ||
-      (Array.isArray(d.nestedTriples) && d.nestedTriples.every(isValidNestedTriple)))
-  );
-}
 
 export async function POST(request: Request) {
   try {
@@ -97,20 +38,16 @@ export async function POST(request: Request) {
       submissionId,
       idempotencyKey,
       posts: rawPosts,
-      atomTxHash: _atomTxHash,
       tripleTxHash,
       nestedTxHash,
       stanceTxHash,
-      tagTxHash: _tagTxHash,
     } = body as {
       submissionId?: string;
       idempotencyKey?: string;
       posts?: unknown[];
-      atomTxHash?: string | null;
       tripleTxHash?: string | null;
       nestedTxHash?: string | null;
       stanceTxHash?: string | null;
-      tagTxHash?: string | null;
     };
 
     if (!submissionId || typeof submissionId !== "string") {
@@ -206,15 +143,46 @@ export async function POST(request: Request) {
     }
     const validPosts = rawPosts as DraftPostPayload[];
 
-    // ─── Per-post validation: exactly 1 MAIN per post ─────────────────────
+    // ─── Per-post validation: exactly 1 MAIN across triples + nestedTriples ──
 
     for (const post of validPosts) {
-      const mainCount = post.triples.filter((t) => t.role === "MAIN").length;
+      const mainCount =
+        post.triples.filter((t) => t.role === "MAIN").length +
+        (post.nestedTriples ?? []).filter((t) => t.role === "MAIN").length;
       if (mainCount !== 1) {
         return NextResponse.json(
           { error: `Each post must have exactly 1 MAIN triple (draft "${post.draftId}" has ${mainCount}).` },
           { status: 400 },
         );
+      }
+    }
+
+    // ─── Semantic guard (blocking) ─────────────────────────────────────────
+
+    for (const draftPost of validPosts) {
+      const referenceText = draftPost.body || submission.inputText;
+      for (const triple of draftPost.triples) {
+        if (triple.isExisting) continue;
+        if (!triple.sLabel || !triple.pLabel || !triple.oLabel) continue;
+        const guardResult = validateSemanticGuard(referenceText, {
+          subject: triple.sLabel,
+          predicate: triple.pLabel,
+          object: triple.oLabel,
+        });
+        if (!guardResult.allowed) {
+          console.warn(JSON.stringify({
+            event: "publish_guard_blocked",
+            submissionId,
+            draftId: draftPost.draftId,
+            tripleTermId: triple.tripleTermId,
+            reason: guardResult.reason,
+            timestamp: new Date().toISOString(),
+          }));
+          return NextResponse.json(
+            { error: guardResult.reason ?? "A claim does not match the post text." },
+            { status: 400 },
+          );
+        }
       }
     }
 
@@ -243,7 +211,7 @@ export async function POST(request: Request) {
           if (seenTermIds.has(triple.tripleTermId)) continue;
           // Skip auto-generated stance triples — stance is stored in Post.stance,
           // triple is already published on-chain via stanceTxHash
-          if (triple.proposalId.startsWith("stance_")) continue;
+          if (isStanceId(triple.proposalId)) continue;
           seenTermIds.add(triple.tripleTermId);
           const link = await tx.postTripleLink.create({
             data: { postId: post.id, termId: triple.tripleTermId, role: triple.role },
@@ -255,7 +223,7 @@ export async function POST(request: Request) {
           if (seenTermIds.has(nested.tripleTermId)) continue;
           seenTermIds.add(nested.tripleTermId);
           const link = await tx.postTripleLink.create({
-            data: { postId: post.id, termId: nested.tripleTermId, role: "SUPPORTING" },
+            data: { postId: post.id, termId: nested.tripleTermId, role: nested.role ?? "SUPPORTING" },
           });
           postTripleLinks.push(link);
         }
@@ -291,7 +259,7 @@ export async function POST(request: Request) {
       for (const triple of draftPost.triples) {
         if (seenTxPlanIds.has(triple.tripleTermId)) continue;
         seenTxPlanIds.add(triple.tripleTermId);
-        const isStance = triple.proposalId.startsWith("stance_");
+        const isStance = isStanceId(triple.proposalId);
         txPlan.push({
           id: triple.tripleTermId,
           kind: "triple" as const,

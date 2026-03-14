@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { isAddress } from "viem";
 
-import { resolveTripleIds } from "@/lib/intuition/intuition-read";
+import { resolveTripleIds } from "@/lib/intuition/resolve";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

@@ -1,0 +1,156 @@
+
+
+.protocolDetails {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+}
+
+.protocolSummary {
+  padding: var(--space-1-5) var(--space-2);
+  font-size: var(--font-size-tiny);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+.protocolSummary::marker,
+.protocolSummary::-webkit-details-marker {
+  display: none;
+}
+
+.protocolSummary::before {
+  content: "\25B8\00a0";
+}
+
+.protocolDetails[open] > .protocolSummary::before {
+  content: "\25BE\00a0";
+}
+
+.protocolContent {
+  padding: 0 var(--space-2) var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  font-size: var(--font-size-tiny);
+}
+
+.pdError {
+  margin: 0;
+  font-size: var(--font-size-tiny);
+  color: var(--color-rose-500);
+}
+
+.pdFees {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  font-size: var(--font-size-tiny);
+  color: var(--text-muted);
+}
+
+.pdFeeLine {
+  border-radius: var(--radius-xs);
+}
+
+.pdFeeLineSummary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  padding: var(--space-0-5) 0;
+}
+
+.pdFeeLineSummary::marker,
+.pdFeeLineSummary::-webkit-details-marker {
+  display: none;
+}
+
+.pdFeeLineSummary::before {
+  content: "\25B8\00a0";
+  flex-shrink: 0;
+}
+
+.pdFeeLine[open] > .pdFeeLineSummary::before {
+  content: "\25BE\00a0";
+}
+
+.pdFeeLineSummary:hover {
+  color: var(--text-secondary);
+}
+
+.pdFeeDetail {
+  margin: var(--space-0-5) 0 var(--space-1) var(--space-3);
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-tiny);
+  color: var(--text-secondary);
+  overflow: hidden;
+}
+
+.pdFeeDetail > li {
+  min-width: 0;
+}
+
+.pdSubSection {
+  margin-left: var(--space-3);
+  border-left: 2px solid var(--border-default);
+  padding-left: var(--space-2);
+  margin-top: var(--space-0-5);
+}
+
+.pdSubSummary {
+  font-size: var(--font-size-tiny);
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  padding: var(--space-0-5) 0;
+}
+
+.pdSubSummary::marker,
+.pdSubSummary::-webkit-details-marker {
+  display: none;
+}
+
+.pdSubSummary::before {
+  content: "\25B8\00a0";
+}
+
+.pdSubSection[open] > .pdSubSummary::before {
+  content: "\25BE\00a0";
+}
+
+.pdSubSummary:hover {
+  color: var(--text-secondary);
+}
+
+.pdFeeLineStatic {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-0-5) 0;
+}
+
+.pdFeeValue {
+  margin-left: auto;
+  text-align: right;
+  white-space: nowrap;
+  font-style: normal;
+}
+
+.pdFeesTotal {
+  font-weight: 600;
+  color: var(--text-primary);
+  padding-top: var(--space-0-5);
+  border-top: 1px solid var(--border-subtle);
+}

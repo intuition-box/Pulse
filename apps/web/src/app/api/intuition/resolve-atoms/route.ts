@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { resolveAtomIds } from "@/lib/intuition/intuition-read";
+import { resolveAtomIds, resolveAtomLabelsById } from "@/lib/intuition/resolve";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const schema = z.object({
-  labels: z.array(z.string().trim().min(1).max(500)).min(1).max(300),
+  labels: z.array(z.string().trim().min(1).max(500)).max(300).default([]),
+  atomIds: z.array(z.string().trim().min(1).max(200)).max(300).default([]),
+}).refine((d) => d.labels.length > 0 || d.atomIds.length > 0, {
+  message: "At least one of labels or atomIds must be provided",
 });
 
 export async function POST(request: NextRequest) {
@@ -22,9 +25,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const atoms = await resolveAtomIds(parsed.data.labels);
+    const atoms = parsed.data.labels.length > 0
+      ? await resolveAtomIds(parsed.data.labels)
+      : [];
+    const atomsById = parsed.data.atomIds.length > 0
+      ? await resolveAtomLabelsById(parsed.data.atomIds)
+      : [];
 
-    return NextResponse.json({ atoms });
+    return NextResponse.json({ atoms, atomsById });
   } catch (error) {
     console.error("POST /api/intuition/resolve-atoms failed:", error);
     return NextResponse.json(

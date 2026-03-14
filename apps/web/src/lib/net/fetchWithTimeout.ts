@@ -1,4 +1,4 @@
-const FETCH_TIMEOUT = 10_000;
+const DEFAULT_TIMEOUT = 10_000;
 
 export class FetchError extends Error {
   code: string;
@@ -12,9 +12,10 @@ export class FetchError extends Error {
 export async function fetchJsonWithTimeout<T>(
   input: RequestInfo,
   init?: RequestInit,
+  timeout: number = DEFAULT_TIMEOUT,
 ): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+  const timer = setTimeout(() => controller.abort(), timeout);
   try {
     const res = await fetch(input, { ...init, signal: controller.signal });
     if (!res.ok) {
@@ -28,7 +29,8 @@ export async function fetchJsonWithTimeout<T>(
   } catch (err) {
     if (err instanceof FetchError) throw err;
     if (err instanceof DOMException && err.name === "AbortError") {
-      throw new FetchError("Resolution timed out", "TIMEOUT");
+      const url = typeof input === "string" ? input : (input as Request).url;
+      throw new FetchError(`Resolution timed out (${url})`, "TIMEOUT");
     }
     throw err;
   } finally {

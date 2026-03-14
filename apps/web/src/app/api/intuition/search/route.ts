@@ -2,11 +2,24 @@ import { NextResponse } from "next/server";
 import { globalSearch } from "@0xintuition/sdk";
 
 import { ensureIntuitionGraphql, intuitionGraphqlUrl } from "@/lib/intuition";
-import { asNumber } from "@/lib/format/asNumber";
+import { parseVaultMetrics } from "@/lib/intuition/metrics";
+import type { TripleSuggestion } from "@/lib/intuition/types";
+import {
+  graphqlAtomToSuggestion as sharedAtomToSuggestion,
+  graphqlTripleToSuggestion as sharedTripleToSuggestion,
+} from "@/lib/intuition/search";
+import {
+  type GraphqlAtom,
+  type GraphqlTriple,
+  TRIPLE_QUERY,
+  fetchAtomsByWhere,
+  fetchSemanticAtoms,
+} from "@/lib/intuition/graphql-queries";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Suggestion = AtomSuggestion from @/lib/intuition/types (re-aliased for local use)
 type Suggestion = {
   id: string;
   label: string;
@@ -14,23 +27,8 @@ type Suggestion = {
   marketCap?: number | null;
   holders?: number | null;
   shares?: number | null;
-};
-
-type TripleSuggestion = {
-  id: string;
-  subject: string;
-  predicate: string;
-  object: string;
-  subjectId?: string | null;
-  predicateId?: string | null;
-  objectId?: string | null;
-  source: "global" | "semantic" | "graphql";
-  marketCap?: number | null;
-  holders?: number | null;
-  shares?: number | null;
-  counterMarketCap?: number | null;
-  counterHolders?: number | null;
-  counterShares?: number | null;
+  sharePrice?: number | null;
+  tripleCount?: number | null;
 };
 
 type SearchPayload = {
@@ -42,130 +40,13 @@ type SearchPayload = {
   oLabel?: string;
 };
 
-type GraphqlAtom = {
-  term_id?: string | null;
-  label?: string | null;
-  data?: string | null;
-  term?: {
-    vaults?: Array<{
-      total_shares?: string | number | null;
-      current_share_price?: string | number | null;
-      position_count?: string | number | null;
-      positions_aggregate?: {
-        aggregate?: {
-          count?: string | number | null;
-          sum?: {
-            shares?: string | number | null;
-          } | null;
-        } | null;
-      } | null;
-    }> | null;
-  } | null;
-};
-
 const MIN_QUERY_LENGTH = 2;
 const DEFAULT_LIMIT = 5;
 const MAX_LIMIT = 25;
-const GRAPHQL_QUERY = `
-  query FindAtoms($where: atoms_bool_exp, $limit: Int) {
-    atoms(where: $where, limit: $limit) {
-      term_id
-      label
-      data
-      term {
-        vaults(where: {curve_id: {_eq: "1"}}) {
-          total_shares
-          current_share_price
-          position_count
-          positions_aggregate {
-            aggregate {
-              count
-              sum {
-                shares
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-`;
-
-const GRAPHQL_TRIPLE_QUERY = `
-  query FindTriples($where: triples_bool_exp, $limit: Int) {
-    triples(where: $where, limit: $limit) {
-      term_id
-      subject { term_id label }
-      predicate { term_id label }
-      object { term_id label }
-      term {
-        vaults(where: {curve_id: {_eq: "1"}}) {
-          total_shares
-          current_share_price
-          market_cap
-          position_count
-        }
-      }
-      counter_term {
-        vaults(where: {curve_id: {_eq: "1"}}) {
-          total_shares
-          current_share_price
-          market_cap
-          position_count
-        }
-      }
-    }
-  }
-`;
-
-const GRAPHQL_SEMANTIC_QUERY = `
-  query SemanticSearchAtoms($query: String!, $limit: Int) {
-    search_term(args: {query: $query}, limit: $limit) {
-      atom {
-        term_id
-        label
-        data
-        term {
-          vaults(where: {curve_id: {_eq: "1"}}) {
-            total_shares
-            current_share_price
-            position_count
-          }
-        }
-      }
-    }
-  }
-`;
-
-type GraphqlTriple = {
-  term_id?: string | null;
-  subject?: { term_id?: string | null; label?: string | null } | null;
-  predicate?: { term_id?: string | null; label?: string | null } | null;
-  object?: { term_id?: string | null; label?: string | null } | null;
-  term?: {
-    vaults?: Array<{
-      total_shares?: string | number | null;
-      current_share_price?: string | number | null;
-      market_cap?: string | number | null;
-      position_count?: string | number | null;
-    }> | null;
-  } | null;
-  counter_term?: {
-    vaults?: Array<{
-      total_shares?: string | number | null;
-      current_share_price?: string | number | null;
-      market_cap?: string | number | null;
-      position_count?: string | number | null;
-    }> | null;
-  } | null;
-};
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
-
-
-
 
 function pickGlobalLabel(atom: {
   label?: string | null;
@@ -205,6 +86,7 @@ function mergeSuggestion(existing: Suggestion, incoming: Suggestion): Suggestion
     marketCap: existing.marketCap ?? incoming.marketCap ?? null,
     holders: existing.holders ?? incoming.holders ?? null,
     shares: existing.shares ?? incoming.shares ?? null,
+    tripleCount: existing.tripleCount ?? incoming.tripleCount ?? null,
   };
 }
 
@@ -230,53 +112,6 @@ function mergeSuggestions(...groups: Suggestion[][]): Suggestion[] {
   return merged;
 }
 
-async function fetchGraphqlAtoms(query: string, limit: number): Promise<GraphqlAtom[]> {
-  try {
-    const res = await fetch(intuitionGraphqlUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: GRAPHQL_QUERY,
-        variables: {
-          where: { label: { _ilike: `%${query}%` } },
-          limit,
-        },
-      }),
-      cache: "no-store",
-    });
-
-    if (!res.ok) return [];
-    const payload = await res.json();
-    return Array.isArray(payload?.data?.atoms) ? (payload.data.atoms as GraphqlAtom[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-async function fetchSemanticAtoms(query: string, limit: number): Promise<GraphqlAtom[]> {
-  try {
-    const res = await fetch(intuitionGraphqlUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: GRAPHQL_SEMANTIC_QUERY,
-        variables: { query, limit },
-      }),
-      cache: "no-store",
-    });
-
-    if (!res.ok) return [];
-    const payload = await res.json();
-    const terms = payload?.data?.search_term;
-    if (!Array.isArray(terms)) return [];
-    return terms
-      .map((t: { atom?: GraphqlAtom | null }) => t.atom)
-      .filter((a: GraphqlAtom | null | undefined): a is GraphqlAtom => a != null);
-  } catch {
-    return [];
-  }
-}
-
 async function fetchGraphqlTriples(
   sLabel: string,
   pLabel: string,
@@ -295,7 +130,7 @@ async function fetchGraphqlTriples(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        query: GRAPHQL_TRIPLE_QUERY,
+        query: TRIPLE_QUERY,
         variables: {
           where: conditions.length === 1 ? conditions[0] : { _and: conditions },
           limit,
@@ -312,49 +147,13 @@ async function fetchGraphqlTriples(
   }
 }
 
+// Delegate to shared mappers from lib/intuition/search
 function graphqlTripleToSuggestion(triple: GraphqlTriple): TripleSuggestion | null {
-  const id = triple.term_id;
-  if (!id) return null;
+  return sharedTripleToSuggestion(triple);
+}
 
-  const subject = triple.subject?.label ?? "";
-  const predicate = triple.predicate?.label ?? "";
-  const object = triple.object?.label ?? "";
-  if (!subject && !predicate && !object) return null;
-
-  const vault = triple.term?.vaults?.[0] ?? null;
-  const totalSharesNum = asNumber(vault?.total_shares ?? null);
-  const sharePriceNum = asNumber(vault?.current_share_price ?? null);
-  const holdersNum = asNumber(vault?.position_count ?? null);
-  const marketCap =
-    totalSharesNum !== null && sharePriceNum !== null
-      ? (totalSharesNum / 1e18) * (sharePriceNum / 1e18)
-      : null;
-
-  const counterVault = triple.counter_term?.vaults?.[0] ?? null;
-  const counterSharesNum = asNumber(counterVault?.total_shares ?? null);
-  const counterPriceNum = asNumber(counterVault?.current_share_price ?? null);
-  const counterHoldersNum = asNumber(counterVault?.position_count ?? null);
-  const counterMarketCap =
-    counterSharesNum !== null && counterPriceNum !== null
-      ? (counterSharesNum / 1e18) * (counterPriceNum / 1e18)
-      : null;
-
-  return {
-    id,
-    subject,
-    predicate,
-    object,
-    subjectId: triple.subject?.term_id ?? null,
-    predicateId: triple.predicate?.term_id ?? null,
-    objectId: triple.object?.term_id ?? null,
-    source: "graphql" as const,
-    marketCap,
-    holders: holdersNum,
-    shares: totalSharesNum,
-    counterMarketCap,
-    counterHolders: counterHoldersNum,
-    counterShares: counterSharesNum,
-  };
+function graphqlAtomToSuggestion(atom: GraphqlAtom, source: "graphql" | "semantic"): Suggestion | null {
+  return sharedAtomToSuggestion(atom, source);
 }
 
 function mergeTripleSuggestions(...groups: TripleSuggestion[][]): TripleSuggestion[] {
@@ -380,9 +179,11 @@ function mergeTripleSuggestions(...groups: TripleSuggestion[][]): TripleSuggesti
         marketCap: existing.marketCap ?? item.marketCap,
         holders: existing.holders ?? item.holders,
         shares: existing.shares ?? item.shares,
+        sharePrice: existing.sharePrice ?? item.sharePrice,
         counterMarketCap: existing.counterMarketCap ?? item.counterMarketCap,
         counterHolders: existing.counterHolders ?? item.counterHolders,
         counterShares: existing.counterShares ?? item.counterShares,
+        counterSharePrice: existing.counterSharePrice ?? item.counterSharePrice,
       };
       byId.set(item.id, next);
       const idx = merged.findIndex((entry) => entry.id === item.id);
@@ -432,46 +233,33 @@ export async function POST(request: Request) {
       ]);
 
       const globalTriples: TripleSuggestion[] = (globalResult?.triples ?? [])
-        .map((triple) => {
-          const subjectLabel = triple.subject?.label ?? "";
-          const predicateLabel = triple.predicate?.label ?? "";
-          const objectLabel = triple.object?.label ?? "";
-          const vault = triple.term?.vaults?.[0] ?? null;
-          const totalSharesNum = asNumber(vault?.total_shares ?? null);
-          const sharePriceNum = asNumber(vault?.current_share_price ?? null);
-          const holdersNum = asNumber(vault?.position_count ?? null);
-          const marketCap =
-            totalSharesNum !== null && sharePriceNum !== null
-              ? (totalSharesNum / 1e18) * (sharePriceNum / 1e18)
-              : null;
+        .map((triple): TripleSuggestion | null => {
+          const pro = parseVaultMetrics(triple.term?.vaults?.[0]);
+          const counter = parseVaultMetrics(triple.counter_term?.vaults?.[0]);
 
-          const counterVault = triple.counter_term?.vaults?.[0] ?? null;
-          const counterSharesNum = asNumber(counterVault?.total_shares ?? null);
-          const counterPriceNum = asNumber(counterVault?.current_share_price ?? null);
-          const counterHoldersNum = asNumber(counterVault?.position_count ?? null);
-          const counterMarketCap =
-            counterSharesNum !== null && counterPriceNum !== null
-              ? (counterSharesNum / 1e18) * (counterPriceNum / 1e18)
-              : null;
+          const id = triple.term_id;
+          const subject = triple.subject?.label ?? "";
+          const predicate = triple.predicate?.label ?? "";
+          const object = triple.object?.label ?? "";
+          if (!id || !subject || !predicate || !object) return null;
 
           return {
-            id: triple.term_id,
-            subject: subjectLabel,
-            predicate: predicateLabel,
-            object: objectLabel,
+            id,
+            subject,
+            predicate,
+            object,
             subjectId: triple.subject?.term_id ?? null,
             predicateId: triple.predicate?.term_id ?? null,
             objectId: triple.object?.term_id ?? null,
             source: "global" as const,
-            marketCap,
-            holders: holdersNum,
-            shares: totalSharesNum,
-            counterMarketCap,
-            counterHolders: counterHoldersNum,
-            counterShares: counterSharesNum,
+            ...pro,
+            counterHolders: counter.holders,
+            counterShares: counter.shares,
+            counterMarketCap: counter.marketCap,
+            counterSharePrice: counter.sharePrice,
           };
         })
-        .filter((item) => Boolean(item.id && item.subject && item.predicate && item.object));
+        .filter((item): item is TripleSuggestion => item !== null);
 
       const graphqlSuggs: TripleSuggestion[] = graphqlTriples
         .map(graphqlTripleToSuggestion)
@@ -488,79 +276,28 @@ export async function POST(request: Request) {
         triplesLimit: 0,
         collectionsLimit: 0,
       }),
-      fetchGraphqlAtoms(query, limit),
-      fetchSemanticAtoms(query, limit).catch((err) => {
+      fetchAtomsByWhere({ label: { _ilike: `%${query}%` } }, limit),
+      fetchSemanticAtoms(query, limit).catch((err: unknown) => {
         console.error("[intuition/search] semantic search failed:", err);
         return [] as GraphqlAtom[];
       }),
     ]);
 
-    const globalAtoms: Suggestion[] = (globalResult?.atoms ?? []).flatMap((atom) => {
+    const globalAtoms: Suggestion[] = (globalResult?.atoms ?? []).flatMap((atom: { term_id: string; label?: string | null; value?: { text_object?: { data: string | null } | null; json_object?: { name?: unknown } | null; thing?: { name?: string | null } | null; person?: { name?: string | null } | null; organization?: { name?: string | null } | null } | null }) => {
       const label = pickGlobalLabel(atom);
       if (!label || label.startsWith("0x")) return [];
       return [{ id: atom.term_id, label, source: "global" as const }];
     });
 
-    const semanticAtoms: Suggestion[] = semanticAtomResults.flatMap((atom) => {
-      const label = pickGlobalLabel(atom);
-      if (!label || label.startsWith("0x")) return [];
-      const id = typeof atom.term_id === "string" ? atom.term_id : "";
-      if (!id) return [];
+    const semanticSuggs: Suggestion[] = semanticAtomResults
+      .map((a: GraphqlAtom) => graphqlAtomToSuggestion(a, "semantic"))
+      .filter((s): s is Suggestion => s !== null && !s.label.startsWith("0x"));
 
-      const vault = atom?.term?.vaults?.[0] ?? null;
-      const totalSharesNum = asNumber(vault?.total_shares ?? null);
-      const sharePriceNum = asNumber(vault?.current_share_price ?? null);
-      const holdersNum = asNumber(vault?.position_count ?? null);
-      const marketCap =
-        totalSharesNum !== null && sharePriceNum !== null
-          ? (totalSharesNum / 1e18) * (sharePriceNum / 1e18)
-          : null;
+    const graphqlSuggs: Suggestion[] = graphqlAtoms
+      .map((a: GraphqlAtom) => graphqlAtomToSuggestion(a, "graphql"))
+      .filter((s): s is Suggestion => s !== null);
 
-      return [{
-        id,
-        label,
-        source: "semantic" as const,
-        marketCap,
-        holders: holdersNum,
-        shares: totalSharesNum,
-      }];
-    });
-
-    const graphqlSuggestions: Suggestion[] = (graphqlAtoms ?? [])
-      .map((atom) => {
-        const rawLabel = atom?.label ?? atom?.data ?? "";
-        const label = typeof rawLabel === "string" ? rawLabel.trim() : "";
-        const vault = atom?.term?.vaults?.[0] ?? null;
-        const totalSharesRaw = vault?.total_shares ?? null;
-        const holdersRaw =
-          vault?.position_count ?? vault?.positions_aggregate?.aggregate?.count ?? null;
-        const sharesRaw =
-          vault?.positions_aggregate?.aggregate?.sum?.shares ?? totalSharesRaw ?? null;
-        const currentSharePriceRaw = vault?.current_share_price ?? null;
-
-        const totalSharesNum = asNumber(totalSharesRaw);
-        const sharePriceNum = asNumber(currentSharePriceRaw);
-        const holdersNum = asNumber(holdersRaw);
-        const sharesNum = asNumber(sharesRaw);
-        const marketCap =
-          totalSharesNum !== null && sharePriceNum !== null
-            ? (totalSharesNum / 1e18) * (sharePriceNum / 1e18)
-            : null;
-
-        const id = typeof atom.term_id === "string" ? atom.term_id : "";
-
-        return {
-          id,
-          label,
-          source: "graphql" as const,
-          marketCap,
-          holders: holdersNum,
-          shares: sharesNum,
-        };
-      })
-      .filter((item: Suggestion) => Boolean(item.id && item.label));
-
-    const suggestions = mergeSuggestions(graphqlSuggestions, globalAtoms, semanticAtoms);
+    const suggestions = mergeSuggestions(graphqlSuggs, globalAtoms, semanticSuggs);
     return NextResponse.json({ suggestions });
   } catch {
     return NextResponse.json(
