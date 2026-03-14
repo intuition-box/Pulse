@@ -1,4 +1,4 @@
-import type { NestedEdge } from "../core.js";
+import type { NestedEdge, TermRef } from "../core.js";
 import type { DerivedTriple, FlatTriple, ClaimAtomMatches } from "../types.js";
 import type { ClaimPlan, GraphResult } from "./claimPlanner.js";
 import { tryDecomposeSubject, tryExtractSubProposition, isReportingVerb } from "./parse.js";
@@ -212,16 +212,7 @@ function processConditional(
       derivedTriples.push({ ...mainBase, ownerGroupKey: groupKey });
     }
 
-    const condRef = buildConditionalObjectRef(condGraph, cond.condText, derivedTriples, groupKey, mainBase);
-    const outermostMainKey = pushEdge(nested, existingNestedKeys, {
-      kind: "conditional",
-      origin: "agent",
-      predicate: fullKw,
-      subject: termTriple(mainBase),
-      object: condRef,
-    });
-
-    applyGraphPostProcessing(
+    const modifierOuterKey = applyGraphPostProcessing(
       mainGraph,
       mainBase,
       claim,
@@ -230,6 +221,18 @@ function processConditional(
       existingNestedKeys,
       derivedTriples,
     );
+
+    const condRef = buildConditionalObjectRef(condGraph, cond.condText, derivedTriples, groupKey, mainBase);
+    const condSubjectRef: TermRef = modifierOuterKey
+      ? { type: "triple", tripleKey: modifierOuterKey }
+      : termTriple(mainBase);
+    const outermostMainKey = pushEdge(nested, existingNestedKeys, {
+      kind: "conditional",
+      origin: "agent",
+      predicate: fullKw,
+      subject: condSubjectRef,
+      object: condRef,
+    });
 
     return { index: tripleIdx, claim, role, group, triple: mainBase, outermostMainKey };
   }
@@ -292,25 +295,7 @@ function processCausal(
   const mainKeyed = keyedCoreIfValid(mainGraph);
   if (!mainKeyed) return nullClaimResult(tripleIdx, claim, role, group);
 
-  let outermostMainKey: string | null = null;
-
-  if (reasonGraph) {
-    const reasonKeyed = keyedCoreIfValid(reasonGraph);
-    if (reasonKeyed) {
-      if (!derivedTriples.some((d) => d.stableKey === reasonKeyed.stableKey))
-        derivedTriples.push({ ...reasonKeyed, ownerGroupKey: groupKey });
-
-      outermostMainKey = pushEdge(nested, existingNestedKeys, {
-        kind: "relation",
-        origin: "agent",
-        predicate: plan.causal.marker,
-        subject: termTriple(mainKeyed),
-        object: termTriple(reasonKeyed),
-      });
-    }
-  }
-
-  applyGraphPostProcessing(
+  const modifierOuterKey = applyGraphPostProcessing(
     mainGraph,
     mainKeyed,
     claim,
@@ -319,6 +304,28 @@ function processCausal(
     existingNestedKeys,
     derivedTriples,
   );
+
+  let outermostMainKey: string | null = modifierOuterKey;
+
+  if (reasonGraph) {
+    const reasonKeyed = keyedCoreIfValid(reasonGraph);
+    if (reasonKeyed) {
+      if (!derivedTriples.some((d) => d.stableKey === reasonKeyed.stableKey))
+        derivedTriples.push({ ...reasonKeyed, ownerGroupKey: groupKey });
+
+      const causalSubjectRef: TermRef = modifierOuterKey
+        ? { type: "triple", tripleKey: modifierOuterKey }
+        : termTriple(mainKeyed);
+
+      outermostMainKey = pushEdge(nested, existingNestedKeys, {
+        kind: "relation",
+        origin: "agent",
+        predicate: plan.causal.marker,
+        subject: causalSubjectRef,
+        object: termTriple(reasonKeyed),
+      });
+    }
+  }
 
   return { index: tripleIdx, claim, role, group, triple: mainKeyed, outermostMainKey };
 }
