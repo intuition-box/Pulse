@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
-import type { Stance } from "../extractionTypes";
-import type { DialogStep } from "../ExtractionFlowDialog";
+import type { Stance } from "../extraction";
 import { useExtractionFlow } from "./useExtractionFlow";
 
 export type UseComposerFlowParams = {
@@ -14,6 +13,10 @@ export type UseComposerFlowParams = {
   onPublishSuccess: (postId: string) => void;
   autoOpen?: boolean;
   onClose?: () => void;
+  /** Theme display name — forwarded to refine chat for context */
+  themeTitle?: string;
+  /** Parent claim body text — forwarded to refine chat for context */
+  parentClaim?: string;
 };
 
 export function useComposerFlow({
@@ -24,11 +27,11 @@ export function useComposerFlow({
   onPublishSuccess,
   autoOpen,
   onClose,
+  themeTitle,
+  parentClaim,
 }: UseComposerFlowParams) {
-  const [composerOpen, setComposerOpen] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(!!autoOpen);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogStep, setDialogStep] = useState<DialogStep>("claims");
-
   const handlePublishSuccess = useCallback(
     (postId: string) => {
       setDialogOpen(false);
@@ -44,19 +47,18 @@ export function useComposerFlow({
     parentMainTripleTermId,
     themeAtomTermId,
     onPublishSuccess: handlePublishSuccess,
+    themeTitle,
+    parentClaim,
   });
 
-  // Auto-open (used by Home inline composer)
-  useEffect(() => {
-    if (autoOpen) setComposerOpen(true);
-  }, [autoOpen]);
+  const { setStance, runExtraction } = flow;
 
   const openComposer = useCallback(
     (stance?: Stance) => {
-      if (stance) flow.setStance(stance);
+      if (stance) setStance(stance);
       setComposerOpen(true);
     },
-    [flow.setStance],
+    [setStance],
   );
 
   const closeComposer = useCallback(() => {
@@ -66,12 +68,11 @@ export function useComposerFlow({
   }, [onClose]);
 
   const handleExtract = useCallback(async () => {
-    const result = await flow.runExtraction();
+    const result = await runExtraction();
     if (result.ok) {
-      setDialogStep(result.proposalCount >= 2 ? "split" : "claims");
       setDialogOpen(true);
     }
-  }, [flow.runExtraction]);
+  }, [runExtraction]);
 
   return {
     composerOpen,
@@ -79,8 +80,6 @@ export function useComposerFlow({
     closeComposer,
     dialogOpen,
     setDialogOpen,
-    dialogStep,
-    setDialogStep,
     flow,
     handleExtract,
   };

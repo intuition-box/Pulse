@@ -3,21 +3,25 @@
   align-items: center;
   justify-content: space-around;
   height: 64px;
-  background: var(--sidebar-bg, #fff);
+  background: var(--sidebar-bg, var(--bg-muted));
   border-top: 1px solid var(--sidebar-border, var(--border-subtle));
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 50;
+  z-index: var(--z-sidebar);
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 .tab {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
+  min-width: 44px;
+  min-height: 44px;
   padding: var(--space-1-5) var(--space-3);
   font-size: 0.625rem;
   font-weight: 500;
@@ -26,6 +30,20 @@
   text-decoration: none;
   border-radius: var(--radius-md);
   transition: color var(--transition-fast);
+}
+
+.tab::after {
+  content: "";
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  opacity: 0;
+  transform: translateX(-50%) scale(0);
+  transition: opacity 300ms var(--ease-spring), transform 300ms var(--ease-spring);
 }
 
 .tab:hover {
@@ -37,7 +55,26 @@
   font-weight: 600;
 }
 
+.tabActive::after {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
 .tabIcon {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
+  transition: transform 300ms var(--ease-spring);
+}
+
+.tabActive .tabIcon {
+  transform: scale(1.1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tabIcon {
+    transition: none;
+  }
+  .tab::after {
+    transition: none;
+  }
 }

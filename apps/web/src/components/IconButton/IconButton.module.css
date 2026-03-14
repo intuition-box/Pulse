@@ -1,0 +1,28 @@
+.iconButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.iconButton:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.sm {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+}
+
+.md {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+}

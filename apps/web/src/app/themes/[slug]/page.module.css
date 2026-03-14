@@ -16,9 +16,8 @@
 
 .headerTop {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .kicker {
@@ -87,7 +86,7 @@
 
 .postsGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: 1fr;
   gap: var(--space-4);
 }
 
@@ -141,43 +140,23 @@
   color: var(--text-muted);
 }
 
-.protocolBadge {
-  font-size: var(--font-size-tiny);
-  cursor: pointer;
-}
-
 .openThread {
   margin-left: auto;
   font-weight: 600;
   color: var(--color-accent);
 }
 
-/* ── Empty ─────────────────────────────────────────────────────────────── */
+/* ── Desktop ──────────────────────────────────────────────────────────── */
 
-.emptyState {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-10) 0;
-  text-align: center;
-}
-
-.emptyText {
-  margin: 0;
-  font-size: var(--font-size-base);
-  color: var(--text-muted);
-}
-
-/* ── Responsive ────────────────────────────────────────────────────────── */
-
-@media (max-width: 768px) {
+@media (min-width: 769px) {
   .headerTop {
-    flex-direction: column;
-    gap: var(--space-3);
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
   }
 
   .postsGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   }
 }

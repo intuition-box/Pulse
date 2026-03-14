@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, Compass, TrendingUp } from "lucide-react";
 
+import { BurgerMenu } from "@/components/BurgerMenu/BurgerMenu";
 import styles from "./BottomNav.module.css";
 
 const TABS = [
@@ -32,6 +33,9 @@ export function BottomNav() {
           <span>{label}</span>
         </Link>
       ))}
+      <div className={styles.tab}>
+        <BurgerMenu />
+      </div>
     </nav>
   );
 }

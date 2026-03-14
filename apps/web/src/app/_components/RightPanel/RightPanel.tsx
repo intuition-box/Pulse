@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { X } from "lucide-react";
 
+import { IconButton } from "@/components/IconButton/IconButton";
 import styles from "./RightPanel.module.css";
 
 type RightPanelProps = {
@@ -19,9 +20,7 @@ export function RightPanel({ open, onClose, title, children }: RightPanelProps) 
     <aside className={styles.panel}>
       <div className={styles.header}>
         <h2 className={styles.title}>{title}</h2>
-        <button className={styles.closeButton} onClick={onClose} aria-label="Close panel">
-          <X size={18} />
-        </button>
+        <IconButton icon={X} size="md" label="Close panel" onClick={onClose} />
       </div>
       <div className={styles.body}>{children}</div>
     </aside>

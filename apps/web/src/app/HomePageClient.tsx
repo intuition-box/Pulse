@@ -9,6 +9,7 @@ import { RightPanel } from "@/app/_components/RightPanel/RightPanel";
 import { Sheet } from "@/app/_components/Sheet/Sheet";
 import { useIsMobile } from "@/app/_components/RightPanel/useIsMobile";
 import { TripleInspector } from "@/components/TripleInspector/TripleInspector";
+import { EmptyState } from "@/components/EmptyState/EmptyState";
 import { useComposerFlow } from "@/features/post/ExtractionWorkspace/hooks/useComposerFlow";
 import { ComposerBlock } from "@/features/post/ExtractionWorkspace/ComposerBlock";
 import { useToast } from "@/components/Toast/ToastContext";
@@ -105,6 +106,7 @@ export function HomePageClient({ trending, feed, hotTopics, themes, loadMoreRepl
   // Inspector state
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [inspectorTriples, setInspectorTriples] = useState<{ termId: string; role: "MAIN" }[]>([]);
+  const [inspectorPostId, setInspectorPostId] = useState<string | null>(null);
 
   // Sentiment data: collect all tripleIds from feed + track extra from "show more"
   const [extraTripleIds, setExtraTripleIds] = useState<string[]>([]);
@@ -130,8 +132,9 @@ export function HomePageClient({ trending, feed, hotTopics, themes, loadMoreRepl
   // Reply state: replyTarget opens the Composer directly (stance chosen inside)
   const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null);
 
-  function handleBadgeClick(tripleTermIds: string[]) {
+  function handleBadgeClick(tripleTermIds: string[], postId: string) {
     setInspectorTriples(tripleTermIds.map((id) => ({ termId: id, role: "MAIN" as const })));
+    setInspectorPostId(postId);
     setReplyTarget(null);
     setInspectorOpen(true);
   }
@@ -168,6 +171,7 @@ export function HomePageClient({ trending, feed, hotTopics, themes, loadMoreRepl
       key={inspectorKey}
       triples={inspectorTriples}
       defaultTripleTermId={inspectorTriples[0]?.termId ?? null}
+      currentPostId={inspectorPostId}
     />
   ) : null;
 
@@ -179,7 +183,7 @@ export function HomePageClient({ trending, feed, hotTopics, themes, loadMoreRepl
 
           <div className={styles.feedList}>
             {feed.length === 0 ? (
-              <p className={styles.empty}>No posts yet. Start a debate!</p>
+              <EmptyState title="No posts yet. Start a debate!" />
             ) : (
               feed.map((post) => (
                 <FeedThread

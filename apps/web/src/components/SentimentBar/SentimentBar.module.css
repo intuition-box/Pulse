@@ -56,13 +56,13 @@
 .barSupport {
   height: 100%;
   background: var(--stance-supports-text);
-  transition: width 0.3s ease;
+  transition: width var(--transition-slow);
 }
 
 .barOppose {
   height: 100%;
   background: var(--stance-refutes-text);
-  transition: width 0.3s ease;
+  transition: width var(--transition-slow);
 }
 
 .barEmpty {
@@ -103,25 +103,3 @@
 
 .detailSupport { color: var(--stance-supports-text); opacity: 0.75; }
 .detailOppose  { color: var(--stance-refutes-text); opacity: 0.75; }
-
-/* ── Loading skeleton ─────────────────────────────────────────────────── */
-
-.skeleton {
-  height: 8px;
-  border-radius: var(--radius-full);
-  background: var(--border-default);
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-.skeletonRow {
-  height: 14px;
-  width: 40%;
-  border-radius: var(--radius-sm);
-  background: var(--border-default);
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
-}

@@ -11,22 +11,36 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./search/types": {
+      "types": "./dist/search/types.d.ts",
+      "import": "./dist/search/types.js"
+    },
+    "./refine": {
+      "types": "./dist/agents/refine-chat-agent.d.ts",
+      "import": "./dist/agents/refine-chat-agent.js"
+    },
+    "./providers": {
+      "types": "./dist/providers/index.d.ts",
+      "import": "./dist/providers/index.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "benchmark": "tsx src/__tests__/benchmark/runner.ts"
   },
   "devDependencies": {
+    "tsx": "^4.21.0",
     "typescript": "^5",
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "^1.0.29",
-    "@db/core": "workspace:^",
-    "@mastra/core": "^0.24.8",
+    "@ai-sdk/groq": "^3.0.26",
+    "ai": "^6.0.105",
     "dotenv": "^17.2.3",
+    "viem": "^2.44.2",
     "zod": "^3.25.76"
   }
 }

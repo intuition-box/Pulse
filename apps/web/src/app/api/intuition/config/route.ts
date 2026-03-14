@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { readMultivaultConfig } from "@/lib/intuition/intuition-read";
+import { readMultivaultConfig } from "@/lib/intuition/resolve";
 
 export const runtime = "nodejs";
 

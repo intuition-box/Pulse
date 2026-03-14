@@ -4,8 +4,9 @@ import { useState } from "react";
 
 import { Badge } from "@/components/Badge/Badge";
 import { Button } from "@/components/Button/Button";
+import { ProtocolBadge } from "@/components/ProtocolBadge/ProtocolBadge";
 import { Card } from "@/components/Card/Card";
-import { Composer } from "@/app/_components/Composer/Composer";
+import { Composer } from "@/features/post/Composer/Composer";
 import { ReplyColumn } from "@/app/_components/ReplyColumn/ReplyColumn";
 import { RightPanel } from "@/app/_components/RightPanel/RightPanel";
 import { Sheet } from "@/app/_components/Sheet/Sheet";
@@ -21,8 +22,10 @@ import { ThumbVote } from "@/components/ThumbVote/ThumbVote";
 import styles from "./showcase.module.css";
 
 const MOCK_REPLIES = [
-  { id: "r1", body: "This is clearly supported by evidence from multiple studies on the topic.", createdAt: "2026-01-15", replyCount: 3 },
-  { id: "r2", body: "The economic data strongly backs this claim when looking at long-term trends.", createdAt: "2026-01-16", replyCount: 1 },
+  { id: "r1", body: "This is clearly supported by evidence from multiple studies on the topic.", createdAt: "2026-01-15", stance: null, replyCount: 3,
+    author: { displayName: "Alice", address: "0x1234567890abcdef1234567890abcdef12345678", avatar: null } },
+  { id: "r2", body: "The economic data strongly backs this claim when looking at long-term trends.", createdAt: "2026-01-16", stance: null, replyCount: 1,
+    author: { displayName: null, address: "0xabcdef1234567890abcdef1234567890abcdef12", avatar: null } },
 ];
 
 const MOCK_TOAST_SUCCESS: Toast = { id: "t1", type: "success", message: "Reply published on-chain", action: { label: "View", href: "#" }, duration: 0 };
@@ -49,7 +52,7 @@ export default function ShowcasePage() {
           <Badge tone="danger">Danger</Badge>
           <Badge tone="supports">Supports</Badge>
           <Badge tone="refutes">Refutes</Badge>
-          <Badge tone="protocol">Protocol</Badge>
+          <ProtocolBadge>Protocol</ProtocolBadge>
         </div>
       </Section>
 

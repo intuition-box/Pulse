@@ -8,27 +8,18 @@ import { VoteSection } from "@/components/SentimentBar/VoteSection";
 import { ConnectedThumbVote } from "@/components/ThumbVote";
 import { useSentimentBatch } from "@/hooks/useSentimentBatch";
 import { TripleInspector } from "@/components/TripleInspector/TripleInspector";
+import { Button } from "@/components/Button/Button";
 import { useComposerFlow } from "@/features/post/ExtractionWorkspace/hooks/useComposerFlow";
 import { ComposerBlock } from "@/features/post/ExtractionWorkspace/ComposerBlock";
-import type { Stance } from "@/features/post/ExtractionWorkspace/extractionTypes";
 import { useToast } from "@/components/Toast/ToastContext";
+import type { ReplyNode } from "@/lib/types/reply";
 
 import { AncestorBreadcrumbs } from "./AncestorBreadcrumbs";
 import { FocusCard } from "./FocusCard";
-import { MiniTreeSection } from "./MiniTreeSection";
 import { RepliesGrid } from "./RepliesGrid";
 
 import styles from "./page.module.css";
 import panelStyles from "@/app/_components/RightPanel/PageWithPanel.module.css";
-
-type ReplyNode = {
-  id: string;
-  body: string;
-  createdAt: string;
-  stance: string | null;
-  replyCount: number;
-  mainTripleTermIds?: string[];
-};
 
 type PostPageClientProps = {
   post: {
@@ -56,7 +47,6 @@ export function PostPageClient({ post, theme, breadcrumbs, replies }: PostPageCl
   const isMobile = useIsMobile();
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [inspectorTriples, setInspectorTriples] = useState(post.tripleLinks);
-  const [treeOpen, setTreeOpen] = useState(false);
   const [voteRefreshKey, setVoteRefreshKey] = useState(0);
 
   const handleVoteSuccess = useCallback(() => {
@@ -69,6 +59,8 @@ export function PostPageClient({ post, theme, breadcrumbs, replies }: PostPageCl
     themeSlug: theme.slug,
     parentPostId: post.id,
     parentMainTripleTermId,
+    themeTitle: theme.name,
+    parentClaim: post.body,
     onPublishSuccess: (postId) => {
       addToast("Reply created", "success", { label: "See", href: `/posts/${postId}` }, 6000);
     },
@@ -81,9 +73,9 @@ export function PostPageClient({ post, theme, breadcrumbs, replies }: PostPageCl
   );
   const { data: sentimentMap } = useSentimentBatch(replyTripleIds);
 
-  function handleReplyClick(stance: Stance) {
+  function handleReplyClick() {
     setInspectorOpen(false);
-    composerFlow.openComposer(stance);
+    composerFlow.openComposer();
   }
 
   function handleOpenInspector() {
@@ -92,7 +84,7 @@ export function PostPageClient({ post, theme, breadcrumbs, replies }: PostPageCl
     setInspectorOpen(true);
   }
 
-  function handleReplyBadgeClick(tripleTermIds: string[]) {
+  function handleReplyBadgeClick(tripleTermIds: string[], _postId: string) {
     setInspectorTriples(tripleTermIds.map(id => ({ termId: id, role: "MAIN" as const })));
     composerFlow.closeComposer();
     setInspectorOpen(true);
@@ -109,6 +101,12 @@ export function PostPageClient({ post, theme, breadcrumbs, replies }: PostPageCl
     [supportReplies, refuteReplies],
   );
 
+  const miniTreeData = useMemo(() => ({
+    breadcrumbs,
+    focusNode: { id: post.id, body: post.body },
+    replies: treeReplies,
+  }), [breadcrumbs, post.id, post.body, treeReplies]);
+
   const inspectorKey = inspectorTriples.map(t => t.termId).join(",");
   const inspectorContent = inspectorTriples.length > 0 ? (
     <TripleInspector
@@ -116,6 +114,7 @@ export function PostPageClient({ post, theme, breadcrumbs, replies }: PostPageCl
       triples={inspectorTriples}
       defaultTripleTermId={inspectorTriples[0]?.termId ?? null}
       currentPostId={post.id}
+      miniTreeData={miniTreeData}
     />
   ) : null;
 
@@ -138,20 +137,19 @@ export function PostPageClient({ post, theme, breadcrumbs, replies }: PostPageCl
             )}
           </FocusCard>
 
-          <MiniTreeSection
-            open={treeOpen}
-            onToggle={() => setTreeOpen(!treeOpen)}
-            breadcrumbs={breadcrumbs}
-            focusNode={{ id: post.id, body: post.body }}
-            replies={treeReplies}
-          />
+          {!composerFlow.composerOpen && (
+            <div className={styles.replyAction}>
+              <Button variant="secondary" size="sm" onClick={handleReplyClick}>
+                Reply
+              </Button>
+            </div>
+          )}
 
-          <ComposerBlock composerFlow={composerFlow} className={styles.composerSection} />
+          <ComposerBlock composerFlow={composerFlow} />
 
           <RepliesGrid
             supportReplies={supportReplies}
             refuteReplies={refuteReplies}
-            onReply={handleReplyClick}
             onBadgeClick={handleReplyBadgeClick}
             sentimentMap={sentimentMap}
           />

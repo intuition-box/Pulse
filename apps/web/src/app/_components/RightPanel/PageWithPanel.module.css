@@ -1,50 +1,54 @@
+/* ── Mobile-first base ────────────────────────────────────────────────── */
+
 .wrapper {
   display: grid;
   grid-template-columns: 1fr;
   transition: grid-template-columns 250ms ease;
   min-height: calc(100vh - var(--topbar-height, 56px));
-  /* Cancel parent main padding so panel is edge-to-edge */
-  margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-8));
+  margin: calc(-1 * var(--space-4));
 }
 
 .wrapperOpen {
-  grid-template-columns: 1fr 420px;
-  /* Lock height so each column scrolls independently */
-  height: calc(100vh - var(--topbar-height, 56px));
-  min-height: auto;
-  overflow: hidden;
+  grid-template-columns: 1fr;
+  height: auto;
+  min-height: calc(100vh - var(--topbar-height, 56px));
+  overflow: visible;
 }
 
 .content {
   min-width: 0;
   overflow-y: auto;
-  /* Re-apply the main padding on the content side only */
-  padding: var(--space-6) var(--space-8);
+  padding: var(--space-4);
 }
 
 .panelSlot {
+  display: none;
   min-width: 0;
   overflow-y: auto;
 }
 
-@media (max-width: 768px) {
+/* ── Desktop ─────────────────────────────────────────────────────────── */
+
+@media (min-width: 769px) {
   .wrapper {
-    margin: calc(-1 * var(--space-4));
+    /* Cancel parent main padding so panel is edge-to-edge */
+    margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-8));
   }
 
-  .wrapper,
   .wrapperOpen {
-    grid-template-columns: 1fr;
-    height: auto;
-    min-height: calc(100vh - var(--topbar-height, 56px));
-    overflow: visible;
+    grid-template-columns: 1fr 420px;
+    /* Lock height so each column scrolls independently */
+    height: calc(100vh - var(--topbar-height, 56px));
+    min-height: auto;
+    overflow: hidden;
   }
 
   .content {
-    padding: var(--space-4);
+    /* Re-apply the main padding on the content side only */
+    padding: var(--space-6) var(--space-8);
   }
 
   .panelSlot {
-    display: none;
+    display: block;
   }
 }

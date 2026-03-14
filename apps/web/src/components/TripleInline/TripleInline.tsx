@@ -1,17 +1,38 @@
+import type { ReactNode } from "react";
+
 import styles from "./TripleInline.module.css";
 
 type TripleInlineProps = {
-  subject: string;
-  predicate: string;
-  object: string;
+  subject: ReactNode;
+  predicate: ReactNode;
+  object: ReactNode;
+  wrap?: boolean;
+  nested?: boolean;
+  subjectNested?: boolean;
+  objectNested?: boolean;
 };
 
-export function TripleInline({ subject, predicate, object }: TripleInlineProps) {
+export function TripleInline({
+  subject,
+  predicate,
+  object,
+  wrap,
+  nested,
+  subjectNested,
+  objectNested,
+}: TripleInlineProps) {
+  const cls = [
+    styles.tripleRow,
+    wrap ? styles.wrap : "",
+    nested ? styles.nested : "",
+  ].filter(Boolean).join(" ");
   return (
-    <div className={styles.tripleRow}>
-      <span className={styles.tripleValue} data-full={subject}>{subject}</span>
-      <span className={styles.tripleValue} data-full={predicate}>{predicate}</span>
-      <span className={styles.tripleValue} data-full={object}>{object}</span>
-    </div>
+    <span className={cls}>
+      <span className={subjectNested ? styles.nested : undefined}>{subject}</span>
+      <span className={styles.separator}>·</span>
+      <span>{predicate}</span>
+      <span className={styles.separator}>·</span>
+      <span className={objectNested ? styles.nested : undefined}>{object}</span>
+    </span>
   );
 }

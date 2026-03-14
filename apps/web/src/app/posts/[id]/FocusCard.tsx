@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { ProtocolBadge } from "@/components/ProtocolBadge/ProtocolBadge";
 import { ThemeBadge } from "@/components/ThemeBadge/ThemeBadge";
 
 import styles from "./FocusCard.module.css";
@@ -29,13 +30,9 @@ export function FocusCard({
       {thumbSlot}
       {children}
       {post.tripleLinks.length > 0 && (
-        <button
-          className={styles.protocolBadge}
-          onClick={onOpenInspector}
-          aria-label="Open protocol inspector"
-        >
-          Inspector
-        </button>
+        <ProtocolBadge onClick={onOpenInspector} className={styles.badgePosition}>
+          INSPECTOR
+        </ProtocolBadge>
       )}
     </section>
   );

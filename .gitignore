@@ -54,4 +54,15 @@ next-env.d.ts
 docs/
 **/__tests__/
 *.test.ts
+*.test.tsx
 *.spec.ts
+*.spec.tsx
+**/benchmark/
+**/benchmarks/
+
+# Benchmark results
+packages/agents/src/__tests__/benchmark/results/
+
+.claude
+.agents
+skills-lock.json

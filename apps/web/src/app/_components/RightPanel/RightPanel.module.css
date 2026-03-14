@@ -27,25 +27,6 @@
   gap: var(--space-2);
 }
 
-.closeButton {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
-}
-
-.closeButton:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
 /* Body — wraps the charcoal .inspector inside */
 .body {
   flex: 1;

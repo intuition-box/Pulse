@@ -2,7 +2,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
+  gap: var(--space-2);
   min-width: 0;
 }
 
@@ -10,44 +10,56 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.6rem;
+  gap: var(--space-2-5);
   min-width: 0;
-  border-radius: 12px;
-  border: 1px solid var(--color-teal-600);
-  background: rgba(15, 118, 110, 0.08);
-  padding: 0.4rem 0.6rem;
-  font-size: 0.75rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-cyan-600);
+  background: color-mix(in srgb, var(--color-cyan-600) 8%, transparent);
+  padding: var(--space-1-5) var(--space-2-5);
+  font-size: var(--font-size-tiny);
   color: var(--text-primary);
 }
 
 .lockLabel {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: var(--space-1-5);
   font-weight: 600;
   min-width: 0;
 }
 
 .lockId {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
-  color: var(--color-teal-700);
+  font-size: var(--font-size-2xs);
+  color: var(--color-cyan-700);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.reviewDot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-amber-700);
+  margin-left: var(--space-1);
+  vertical-align: middle;
+  cursor: help;
+  flex-shrink: 0;
+}
+
 .suggestions {
   position: absolute;
-  top: calc(100% + 0.35rem);
+  top: calc(100% + var(--space-1-5));
   left: 0;
   right: 0;
-  z-index: 20;
-  border-radius: 14px;
+  z-index: var(--z-sticky);
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-default);
   background: var(--bg-surface);
-  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.12);
-  padding: 0.4rem;
+  box-shadow: var(--shadow-md);
+  padding: var(--space-1-5);
   max-height: 14rem;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -60,13 +72,13 @@
   text-align: left;
   border: 1px solid transparent;
   background: transparent;
-  padding: 0.55rem 0.6rem;
-  border-radius: 10px;
+  padding: var(--space-2) var(--space-2-5);
+  border-radius: var(--radius-lg);
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  transition: background-color 0.12s ease, border-color 0.12s ease;
+  gap: var(--space-1);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .suggestionCard:hover,
@@ -76,7 +88,7 @@
 }
 
 .cardLabel {
-  font-size: 0.88rem;
+  font-size: var(--font-size-small);
   font-weight: 500;
   color: var(--text-primary);
   word-break: break-word;
@@ -85,29 +97,29 @@
 .cardBottom {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .cardId {
   font-family: var(--font-mono);
-  font-size: 0.65rem;
+  font-size: var(--font-size-2xs);
   color: var(--text-muted);
 }
 
 .cardMetrics {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: var(--space-3);
 }
 
 .cardMetric {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-1);
 }
 
 .cardMetricLabel {
-  font-size: 0.6rem;
+  font-size: var(--font-size-2xs);
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -115,21 +127,21 @@
 }
 
 .cardMetricValue {
-  font-size: 0.7rem;
+  font-size: var(--font-size-2xs);
   font-weight: 600;
   color: var(--text-secondary);
   font-family: var(--font-mono);
 }
 
 .cardSource {
-  font-size: 0.6rem;
+  font-size: var(--font-size-2xs);
   font-weight: 500;
   letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--text-muted);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   border: 1px solid var(--border-subtle);
-  padding: 0.1rem 0.45rem;
+  padding: var(--space-0-5) var(--space-2);
   align-self: flex-start;
 }
 
@@ -138,20 +150,20 @@
 .createNewOption {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.55rem 0.6rem;
-  margin-top: 0.25rem;
-  border-radius: 10px;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2-5);
+  margin-top: var(--space-1);
+  border-radius: var(--radius-lg);
   border: 1px dashed var(--border-default);
   background: transparent;
   cursor: pointer;
-  transition: background-color 0.12s ease, border-color 0.12s ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .createNewOption:hover,
 .createNewOptionActive {
-  background: rgba(20, 184, 166, 0.08);
-  border-color: var(--color-teal-600);
+  background: color-mix(in srgb, var(--color-cyan-600) 8%, transparent);
+  border-color: var(--color-cyan-600);
 }
 
 .createNewIcon {
@@ -162,15 +174,15 @@
   height: 1.25rem;
   flex-shrink: 0;
   border-radius: 50%;
-  background: var(--color-teal-600);
-  color: white;
-  font-size: 0.75rem;
+  background: var(--color-cyan-600);
+  color: var(--color-white);
+  font-size: var(--font-size-tiny);
   font-weight: 700;
   line-height: 1;
 }
 
 .createNewText {
-  font-size: 0.8rem;
+  font-size: var(--font-size-small);
   color: var(--text-secondary);
 }
 
@@ -183,37 +195,36 @@
 
 .suggestionFooter {
   border-top: 1px solid var(--border-subtle);
-  margin-top: 0.35rem;
-  padding-top: 0.35rem;
+  margin-top: var(--space-1-5);
+  padding-top: var(--space-1-5);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 
 .muted {
-  font-size: 0.7rem;
+  font-size: var(--font-size-2xs);
   color: var(--text-muted);
 }
 
 .loadMore {
   border: none;
   background: transparent;
-  font-size: 0.75rem;
-  color: var(--color-teal-600);
+  font-size: var(--font-size-tiny);
+  color: var(--color-cyan-600);
   cursor: pointer;
   padding: 0;
 }
 
 .loading {
-  font-size: 0.75rem;
+  font-size: var(--font-size-tiny);
   color: var(--text-secondary);
-  padding: 0.35rem 0.5rem;
+  padding: var(--space-1-5) var(--space-2);
 }
 
 .empty {
-  font-size: 0.75rem;
+  font-size: var(--font-size-tiny);
   color: var(--text-muted);
-  padding: 0.35rem 0.5rem;
+  padding: var(--space-1-5) var(--space-2);
 }
-

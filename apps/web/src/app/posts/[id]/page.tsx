@@ -59,6 +59,7 @@ export default async function PostPage({ params }: PostPageProps) {
           createdAt: true,
           parentPostId: true,
           stance: true,
+          user: { select: { displayName: true, address: true, avatar: true } },
           tripleLinks: {
             where: { role: "MAIN" },
             orderBy: { createdAt: "asc" },
@@ -95,6 +96,11 @@ export default async function PostPage({ params }: PostPageProps) {
     stance: reply.stance ?? null,
     replyCount: countMap.get(reply.id) ?? 0,
     mainTripleTermIds: reply.tripleLinks.map(l => l.termId),
+    author: {
+      displayName: reply.user.displayName,
+      address: reply.user.address,
+      avatar: reply.user.avatar,
+    },
   }));
 
   const linkedTriples = post.tripleLinks.map((link) => ({

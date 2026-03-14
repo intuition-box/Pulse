@@ -8,38 +8,46 @@ import { getMultiVaultAddressFromChainId } from "@0xintuition/sdk";
 import { intuitionTestnet } from "@/lib/chain";
 import { ensureIntuitionGraphql } from "@/lib/intuition";
 import { labels } from "@/lib/vocabulary";
+import {
+  validateAtomRelevance,
+  validateTripleRelevance,
+  getReferenceBodyForProposal,
+} from "@/lib/validation/semanticRelevance";
 
 import {
   buildResolvedTripleMap,
   collectNestedAtomLabels,
+  buildPublishPlan,
   groupResolvedByDraft,
+  computeEffectiveMainTargets,
   type ApprovedProposalWithRole,
   type DepositState,
   type DraftPost,
   type ExtractionJobSummary,
+  type MainRef,
+  type DerivedTripleDraft,
   type NestedProposalDraft,
   type ProposalDraft,
   type PublishSummary,
   type ResolvedNestedTriple,
   type ResolvedTriple,
   type TxPlanItem,
-} from "../extractionTypes";
+} from "../extraction";
 
 import {
   hydrateMatchedTriples,
   resolveAtoms,
   resolveTriples,
+  resolveDerivedTriples,
   resolveNestedTriples,
   resolveStanceTriples,
   resolveTagTriples,
   depositOnExistingTriples,
-  PublishStepError,
+  PublishPipelineError,
   type StanceEntry,
   type TagEntry,
-  type StepContext,
-} from "../publishSteps";
-
-// ─── Params & Return types ────────────────────────────────────────────────
+  type PublishContext,
+} from "../publish";
 
 type UseOnchainPublishParams = {
   // Wagmi
@@ -68,16 +76,21 @@ type UseOnchainPublishParams = {
   visibleNestedProposals: NestedProposalDraft[];
   proposals: ProposalDraft[];
   themeAtomTermId: string | null;
+  mainRefByDraft: Map<string, MainRef | null>;
+  derivedTriples: DerivedTripleDraft[];
+  parentClaim?: string | null;
 };
+
+export type PublishStep = "preparing" | "terms" | "claims" | "linking" | "finalizing";
 
 type UseOnchainPublishReturn = {
   isPublishing: boolean;
+  publishStep: PublishStep | null;
   publishError: string | null;
   publishOnchain: () => Promise<void>;
   switchToCorrectChain: () => Promise<void>;
+  resetPublishError: () => void;
 };
-
-// ─── Hook ─────────────────────────────────────────────────────────────────
 
 export function useOnchainPublish({
   isConnected,
@@ -102,11 +115,25 @@ export function useOnchainPublish({
   visibleNestedProposals,
   proposals,
   themeAtomTermId,
+  mainRefByDraft,
+  derivedTriples,
+  parentClaim,
 }: UseOnchainPublishParams): UseOnchainPublishReturn {
   const [isPublishing, setIsPublishing] = useState(false);
+  const [publishStep, setPublishStep] = useState<PublishStep | null>(null);
   const [publishError, setPublishError] = useState<string | null>(null);
 
-  // ─── Internal: cancelPublish ──────────────────────────────────────────
+  function resolveMainTripleTermId(
+    mainRef: MainRef | null,
+    resolvedByIndex: Array<ResolvedTriple | null>,
+    resolvedNestedTriples: ResolvedNestedTriple[],
+  ): string | null {
+    if (!mainRef) return null;
+    if (mainRef.type === "proposal") {
+      return resolvedByIndex.find((r) => r?.proposalId === mainRef.id)?.tripleTermId ?? null;
+    }
+    return resolvedNestedTriples.find((r) => r.nestedProposalId === mainRef.nestedId)?.tripleTermId ?? null;
+  }
 
   async function cancelPublish(submissionId: string, idempotencyKey: string, reason: string): Promise<boolean> {
     try {
@@ -120,8 +147,6 @@ export function useOnchainPublish({
       return false;
     }
   }
-
-  // ─── Exposed: publishOnchain ──────────────────────────────────────────
 
   async function publishOnchain() {
     setMessage(null);
@@ -156,15 +181,55 @@ export function useOnchainPublish({
     if (isPublishing) return; // Double-click guard
 
     setIsPublishing(true);
+    setPublishStep("preparing");
     const idempotencyKey = crypto.randomUUID();
     let prepared = false;
 
     try {
-      // Ensure session before any on-chain action
+      const publishPlan = buildPublishPlan({
+        approvedProposals,
+        draftPosts,
+        nestedProposals: visibleNestedProposals,
+        mainRefByDraft,
+        parentPostId: extractionJob.parentPostId ?? null,
+        parentMainTripleTermId: extractionJob.parentMainTripleTermId ?? null,
+        themeAtomTermId: extractionJob.parentPostId ? null : themeAtomTermId,
+      });
+
+      const firstPlanError = publishPlan.errors[0];
+      if (firstPlanError) {
+        throw new PublishPipelineError(firstPlanError.code, firstPlanError.message);
+      }
+      const publishableProposals = publishPlan.publishableProposals;
+
+      for (const ap of publishableProposals) {
+        const body = getReferenceBodyForProposal(ap.id, draftPosts);
+        if (!body) {
+          throw new PublishPipelineError(
+            "relevance_check_failed",
+            "Cannot publish: a claim has no associated post body.",
+          );
+        }
+        const sCheck = validateAtomRelevance(ap.sText, body, "sText", { contextText: parentClaim });
+        if (!sCheck.valid) {
+          throw new PublishPipelineError("relevance_check_failed", sCheck.reason!);
+        }
+        const oCheck = validateAtomRelevance(ap.oText, body, "oText", { contextText: parentClaim });
+        if (!oCheck.valid) {
+          throw new PublishPipelineError("relevance_check_failed", oCheck.reason!);
+        }
+        const tripleCheck = validateTripleRelevance(
+          { subject: ap.sText, predicate: ap.pText, object: ap.oText },
+          body,
+          { contextText: parentClaim },
+        );
+        if (!tripleCheck.valid) {
+          throw new PublishPipelineError("relevance_check_failed", tripleCheck.reason!);
+        }
+      }
       const sessionOk = await ensureSession();
       if (!sessionOk) return;
 
-      // Lock submission server-side before publishing
       const prepareRes = await fetch("/api/publish/prepare", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -177,7 +242,6 @@ export function useOnchainPublish({
       if (!prepareRes.ok) {
         const prepareData = await prepareRes.json().catch(() => ({}));
         if (prepareData.alreadyPublished && prepareData.postId) {
-          // Already published — recover existing post
           setPublishedPosts([{
             id: prepareData.postId,
             publishedAt: new Date().toISOString(),
@@ -186,7 +250,6 @@ export function useOnchainPublish({
           return;
         }
 
-        // Already PUBLISHING (e.g. localStorage lost) — auto-cancel and re-prepare
         if (prepareData.existingKey) {
           const cancelled = await cancelPublish(
             extractionJob.id,
@@ -197,7 +260,6 @@ export function useOnchainPublish({
             setPublishError("Unable to resume previous attempt. Please try again.");
             return;
           }
-          // Re-prepare with our new idempotencyKey
           const retryRes = await fetch("/api/publish/prepare", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -211,7 +273,6 @@ export function useOnchainPublish({
             setPublishError(retryData.error ?? "Failed to prepare publication.");
             return;
           }
-          // Recovery successful — continue the normal flow below
         } else {
           setPublishError(prepareData.error ?? "Failed to prepare publication.");
           return;
@@ -220,7 +281,6 @@ export function useOnchainPublish({
 
       prepared = true;
 
-      // Wallet and network guards
       if (!walletClient || !publicClient || !address) {
         setPublishError("Wallet is initializing. Please wait a moment and try again.");
         await cancelPublish(extractionJob.id, idempotencyKey, "wallet_not_ready");
@@ -240,16 +300,15 @@ export function useOnchainPublish({
       ensureIntuitionGraphql();
 
       const multivaultAddress = getMultiVaultAddressFromChainId(intuitionTestnet.id) as Address;
-      const ctx: StepContext = {
+      const ctx: PublishContext = {
         writeConfig: { walletClient, publicClient, multivaultAddress },
         accountAddress: address,
       };
 
-      // [3a] Hydrate pre-matched triples
       const resolvedByIndex: Array<ResolvedTriple | null> =
-        new Array(approvedProposals.length).fill(null);
+        new Array(publishableProposals.length).fill(null);
 
-      const toResolve = await hydrateMatchedTriples(approvedProposals, resolvedByIndex);
+      const toResolve = await hydrateMatchedTriples(publishableProposals, resolvedByIndex);
 
       let atomTxHash: string | null = null;
       let tripleTxHash: string | null = null;
@@ -257,139 +316,161 @@ export function useOnchainPublish({
       let stanceTxHash: string | null = null;
       let resolvedNestedTriples: ResolvedNestedTriple[] = [];
 
-      // [3b] Resolve atoms + triples
       const nestedAtomLabels = collectNestedAtomLabels(visibleNestedProposals);
+      const derivedAtomLabels = derivedTriples.flatMap((dt) => [dt.subject, dt.predicate, dt.object]);
+      const allExtraAtomLabels = [...nestedAtomLabels, ...derivedAtomLabels];
 
-      if (toResolve.length > 0 || visibleNestedProposals.length > 0) {
-        const atomResult = await resolveAtoms(toResolve, ctx, nestedAtomLabels);
+      let derivedTxHash: string | null = null;
+
+      const { directMainProposalIds, mainNestedIds } = computeEffectiveMainTargets(draftPosts, mainRefByDraft);
+
+      setPublishStep("terms");
+
+      if (toResolve.length > 0 || visibleNestedProposals.length > 0 || derivedTriples.length > 0) {
+        const atomResult = await resolveAtoms(toResolve, ctx, allExtraAtomLabels);
         atomTxHash = atomResult.atomTxHash;
 
+        setPublishStep("claims");
+
         if (toResolve.length > 0) {
-          const tripleResult = await resolveTriples(toResolve, atomResult.atomMap, resolvedByIndex, ctx);
+          const tripleResult = await resolveTriples(toResolve, atomResult.atomMap, resolvedByIndex, ctx, directMainProposalIds);
           tripleTxHash = tripleResult.tripleTxHash;
         }
 
-        // [3b2] Resolve nested triples (invariant I5: AFTER resolveTriples)
+        const resolvedTripleMap = buildResolvedTripleMap(resolvedByIndex, publishableProposals);
+
+        if (derivedTriples.length > 0) {
+          const derivedResult = await resolveDerivedTriples({
+            derivedTriples,
+            atomMap: atomResult.atomMap,
+            ctx,
+          });
+          derivedTxHash = derivedResult.derivedTxHash;
+          for (const [sk, tid] of derivedResult.resolvedDerived) {
+            resolvedTripleMap.set(sk, tid);
+          }
+        }
+
         if (visibleNestedProposals.length > 0) {
-          const resolvedTripleMap = buildResolvedTripleMap(resolvedByIndex, approvedProposals);
           const nestedResult = await resolveNestedTriples({
             nestedProposals: visibleNestedProposals,
             resolvedTripleMap,
             atomMap: atomResult.atomMap,
             ctx,
+            mainNestedIds,
           });
           resolvedNestedTriples = nestedResult.resolvedNested;
           nestedTxHash = nestedResult.nestedTxHash;
         }
       }
 
-      // [3c] Stance triples (replies only — 1 batch TX for all drafts)
-      if (extractionJob.parentPostId && extractionJob.parentMainTripleTermId) {
-        const stanceEntries: StanceEntry[] = [];
-        for (const draft of draftPosts) {
-          if (!draft.stance) continue;
-          const mainEntry = approvedProposals.find(
-            (p) => p.id === draft.mainProposalId && p.role === "MAIN",
-          );
-          if (!mainEntry) continue;
-          const mainResolved = resolvedByIndex.find(
-            (t) => t?.proposalId === mainEntry.id && t?.role === "MAIN",
-          );
-          if (!mainResolved) {
-            throw new PublishStepError("stance_failed", labels.errorStanceCreation);
-          }
-          stanceEntries.push({
-            mainTripleTermId: mainResolved.tripleTermId,
-            mainProposalId: mainResolved.proposalId,
-            stance: draft.stance,
-            parentMainTripleTermId: extractionJob.parentMainTripleTermId,
-          });
-        }
+      setPublishStep("linking");
 
-        if (stanceEntries.length > 0) {
-          const stanceResult = await resolveStanceTriples({
-            entries: stanceEntries,
-            resolvedByIndex,
-            ctx,
-          });
-          stanceTxHash = stanceResult.stanceTxHash;
+      const resolvedPlan: {
+        stanceEntries: StanceEntry[];
+        tagEntries: TagEntry[];
+      } = {
+        stanceEntries: [],
+        tagEntries: [],
+      };
+
+      for (const entry of publishPlan.metadata.stanceEntries) {
+        const mainRef = mainRefByDraft.get(entry.draftId) ?? null;
+        const mainTripleTermId = resolveMainTripleTermId(mainRef, resolvedByIndex, resolvedNestedTriples);
+        if (!mainTripleTermId) {
+          throw new PublishPipelineError(
+            "METADATA_UNRESOLVED",
+            `Stance metadata unresolved for draft "${entry.draftId}" (main triple not resolved).`,
+          );
         }
+        resolvedPlan.stanceEntries.push({
+          mainTripleTermId,
+          mainProposalId: entry.mainProposalId ?? entry.draftId,
+          stance: entry.stance,
+          parentMainTripleTermId: entry.parentMainTripleTermId,
+        });
       }
 
-      // [3d] Tag triples (root posts in themes with on-chain atoms)
+      if (resolvedPlan.stanceEntries.length > 0) {
+        const stanceResult = await resolveStanceTriples({
+          entries: resolvedPlan.stanceEntries,
+          resolvedByIndex,
+          ctx,
+        });
+        stanceTxHash = stanceResult.stanceTxHash;
+      }
+
       let tagTxHash: string | null = null;
-      if (!extractionJob.parentPostId && themeAtomTermId) {
-        const seen = new Set<string>();
-        const tagEntries: TagEntry[] = [];
-        for (const draft of draftPosts) {
-          const mainResolved = resolvedByIndex.find(
-            (t) => t?.proposalId === draft.mainProposalId && t?.role === "MAIN",
+      const seenTagTriples = new Set<string>();
+      for (const entry of publishPlan.metadata.tagEntries) {
+        const mainRef = mainRefByDraft.get(entry.draftId) ?? null;
+        const mainTripleTermId = resolveMainTripleTermId(mainRef, resolvedByIndex, resolvedNestedTriples);
+        if (!mainTripleTermId) {
+          throw new PublishPipelineError(
+            "METADATA_UNRESOLVED",
+            `Tag metadata unresolved for draft "${entry.draftId}" (main triple not resolved).`,
           );
-          if (!mainResolved) continue;
-          const dedupeKey = `${mainResolved.tripleTermId}-${themeAtomTermId}`;
-          if (seen.has(dedupeKey)) continue;
-          seen.add(dedupeKey);
-          tagEntries.push({
-            mainTripleTermId: mainResolved.tripleTermId,
-            mainProposalId: mainResolved.proposalId,
-            themeAtomTermId,
-          });
         }
-        if (tagEntries.length > 0) {
-          const tagResult = await resolveTagTriples({ entries: tagEntries, ctx });
-          tagTxHash = tagResult.tagTxHash;
-        }
+        const dedupeKey = `${mainTripleTermId}-${entry.themeAtomTermId}`;
+        if (seenTagTriples.has(dedupeKey)) continue;
+        seenTagTriples.add(dedupeKey);
+        resolvedPlan.tagEntries.push({
+          mainTripleTermId,
+          mainProposalId: entry.mainProposalId ?? entry.draftId,
+          themeAtomTermId: entry.themeAtomTermId,
+        });
+      }
+      if (resolvedPlan.tagEntries.length > 0) {
+        const tagResult = await resolveTagTriples({ entries: resolvedPlan.tagEntries, ctx });
+        tagTxHash = tagResult.tagTxHash;
       }
 
-      // [3e] Final validation
       const orderedTriples = resolvedByIndex.filter(
         (t): t is ResolvedTriple => Boolean(t),
       );
-      const stanceCount = extractionJob.parentPostId
-        ? draftPosts.filter((d) => d.stance).length
-        : 0;
-      const expectedCount = approvedProposals.length + stanceCount;
+      const stanceCount = resolvedPlan.stanceEntries.length;
+      const expectedCount = publishableProposals.length + stanceCount;
       if (orderedTriples.length !== expectedCount) {
-        throw new PublishStepError("resolution_incomplete", labels.errorResolution);
+        throw new PublishPipelineError("resolution_incomplete", labels.errorResolution);
       }
 
-      // Deposits on existing triples (core + nested)
-      const existingCoreTriples = orderedTriples.filter((t) => t.isExisting);
-      const existingNestedAsResolved: ResolvedTriple[] = resolvedNestedTriples
-        .filter((n) => n.isExisting)
-        .map((n) => ({
-          proposalId: n.nestedProposalId,
-          role: "SUPPORTING" as const,
-          subjectAtomId: n.subjectTermId,
-          predicateAtomId: n.predicateTermId,
-          objectAtomId: n.objectTermId,
-          tripleTermId: n.tripleTermId,
-          isExisting: true,
-        }));
-      const allExistingTriples = [...existingCoreTriples, ...existingNestedAsResolved];
-
-      if (allExistingTriples.length > 0) {
-        setDepositState({ status: "depositing" });
-        const depositResult = await depositOnExistingTriples({
-          triples: allExistingTriples,
-          ctx,
-          minDeposit,
-        });
-        setDepositState({ status: "confirmed", txHash: depositResult.txHash });
-      } else {
-        setDepositState({ status: "idle" });
-      }
-
-      // Build per-draft confirm payload
       const allDraftPayloads = groupResolvedByDraft(
         resolvedByIndex,
         resolvedNestedTriples,
         draftPosts,
         proposals,
         visibleNestedProposals,
+        mainRefByDraft,
+        derivedTriples,
       );
-      // Skip empty drafts (all proposals rejected) — API requires exactly 1 MAIN per post
-      const draftPayloads = allDraftPayloads.filter((p) => p.triples.length > 0);
+      const draftPayloads = allDraftPayloads.filter(
+        (p) => p.triples.length > 0 || p.nestedTriples.length > 0,
+      );
+
+      const existingMainTripleTermIds = draftPayloads.flatMap((post) => [
+        ...post.triples
+          .filter((t) => t.role === "MAIN" && t.isExisting)
+          .map((t) => t.tripleTermId),
+        ...(post.nestedTriples ?? [])
+          .filter((t) => t.role === "MAIN" && t.isExisting)
+          .map((t) => t.tripleTermId),
+      ]);
+
+      if (existingMainTripleTermIds.length > 0) {
+        setDepositState({ status: "depositing" });
+        const depositResult = await depositOnExistingTriples({
+          tripleTermIds: existingMainTripleTermIds,
+          ctx,
+          minDeposit,
+        });
+        setDepositState({
+          status: "confirmed",
+          txHash: depositResult.txHash,
+          count: existingMainTripleTermIds.length,
+        });
+      } else {
+        setDepositState({ status: "idle" });
+      }
 
       const confirmPayload = {
         submissionId: extractionJob.id,
@@ -397,6 +478,7 @@ export function useOnchainPublish({
         posts: draftPayloads,
         atomTxHash,
         tripleTxHash,
+        derivedTxHash,
         nestedTxHash,
         stanceTxHash,
         tagTxHash,
@@ -410,14 +492,13 @@ export function useOnchainPublish({
         // localStorage may be unavailable — proceed anyway
       }
 
-      // Re-validate session in case it expired during TX signing
       const sessionStillOk = await ensureSession();
       if (!sessionStillOk) {
-        // localStorage has the data — user can retry after re-auth on next page load
         return;
       }
 
-      // Confirm and persist to DB (with retry on 5xx)
+      setPublishStep("finalizing");
+
       const { fetchWithRetry } = await import("@/lib/net/fetchRetry");
       const response = await fetchWithRetry("/api/publish", {
         method: "POST",
@@ -425,7 +506,6 @@ export function useOnchainPublish({
         body: JSON.stringify(confirmPayload),
       }, { retries: 3, backoffMs: 1000 });
 
-      // Check if response has content before parsing JSON
       const contentType = response.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
         setPublishError("Server returned an invalid response. Please try again.");
@@ -443,11 +523,9 @@ export function useOnchainPublish({
         return;
       }
 
-      // Success: clear local state and update UI
       try {
         localStorage.removeItem(`dm_publish_intent_${extractionJob.id}`);
       } catch {
-        // ignore
       }
 
       const posts: PublishSummary[] = data.posts ?? [];
@@ -460,7 +538,12 @@ export function useOnchainPublish({
         onPublishSuccess(posts[0].id);
       }
     } catch (error) {
-      if (error instanceof PublishStepError) {
+      if (error instanceof PublishPipelineError) {
+        console.error("[publish] pipeline error", {
+          code: error.code,
+          message: error.message,
+          stack: error.stack ?? null,
+        });
         setPublishError(error.message);
         if (error.code === "deposit_failed") {
           setDepositState({ status: "failed", error: error.message });
@@ -469,6 +552,7 @@ export function useOnchainPublish({
           await cancelPublish(extractionJob!.id, idempotencyKey, error.code);
         }
       } else {
+        console.error("[publish] unexpected error", error);
         const msg = error instanceof Error ? error.message : "Unable to publish.";
         setPublishError(msg);
         if (prepared) {
@@ -477,10 +561,9 @@ export function useOnchainPublish({
       }
     } finally {
       setIsPublishing(false);
+      setPublishStep(null);
     }
   }
-
-  // ─── Exposed: switchToCorrectChain ────────────────────────────────────
 
   async function switchToCorrectChain() {
     try {
@@ -492,8 +575,10 @@ export function useOnchainPublish({
 
   return {
     isPublishing,
+    publishStep,
     publishError,
     publishOnchain,
     switchToCorrectChain,
+    resetPublishError: () => setPublishError(null),
   };
 }

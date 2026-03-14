@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getTripleDetails } from "@0xintuition/sdk";
-import { formatEther } from "viem";
 import { ensureIntuitionGraphql } from "@/lib/intuition";
+import { parseVaultMetrics } from "@/lib/intuition/metrics";
+import { mapTripleShape, resolveAtomLabel } from "@/lib/intuition/resolveTerm";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,11 +11,13 @@ type TriplePageProps = {
   params: Promise<{ id: string }>;
 };
 
+// ─── Route ────────────────────────────────────────────────────────────────────
+
 /**
  * GET /api/triples/[id]
  *
  * Returns the Subject-Predicate-Object data for a triple term ID
- * using the Intuition SDK.
+ * using the Intuition SDK. Resolves nested atoms (depth 1).
  */
 export async function GET(request: Request, { params }: TriplePageProps) {
   const { id } = await params;
@@ -31,33 +34,29 @@ export async function GET(request: Request, { params }: TriplePageProps) {
       return NextResponse.json({ error: "Triple not found." }, { status: 404 });
     }
 
-    const vault = details.term?.vaults?.[0];
-    const holders = vault?.allPositions?.aggregate?.count ?? null;
+    const base = mapTripleShape(details);
 
-    // total_shares and current_share_price are in wei (18 decimals).
-    // Convert to human-readable before multiplying to avoid 10^36 overflow.
-    const totalSharesHuman = vault?.total_shares
-      ? Number(formatEther(BigInt(vault.total_shares)))
-      : null;
-    const sharePriceHuman = vault?.current_share_price
-      ? Number(formatEther(BigInt(vault.current_share_price)))
-      : null;
-    const marketCap =
-      totalSharesHuman && sharePriceHuman ? totalSharesHuman * sharePriceHuman : null;
+    // Resolve nested atoms in parallel (subject + object only, predicate is never nested)
+    const [subjectResolved, objectResolved] = await Promise.all([
+      resolveAtomLabel(details.subject, details.subject_id ? String(details.subject_id) : null),
+      resolveAtomLabel(details.object, details.object_id ? String(details.object_id) : null),
+    ]);
 
     return NextResponse.json({
       triple: {
-        id: details.term_id ?? id,
-        subject: details.subject?.label ?? details.subject?.data ?? "Unknown",
-        predicate: details.predicate?.label ?? details.predicate?.data ?? "Unknown",
-        object: details.object?.label ?? details.object?.data ?? "Unknown",
+        id: base.termId || id,
+        subject: subjectResolved.label,
+        predicate: base.predicate,
+        object: objectResolved.label,
         creator: details.creator?.label ?? details.creator_id ?? "Unknown",
         createdAt: details.created_at ?? null,
-        marketCap,
-        holders,
-        shares: totalSharesHuman,
-        sharePrice: sharePriceHuman,
-        counterTermId: details.counter_term_id ?? null,
+        marketCap: base.marketCap,
+        holders: base.holders,
+        shares: base.shares,
+        sharePrice: parseVaultMetrics(details.term?.vaults?.[0]).sharePrice,
+        counterTermId: base.counterTermId,
+        subjectNested: subjectResolved.nestedTriple,
+        objectNested: objectResolved.nestedTriple,
       },
     });
   } catch (error: unknown) {

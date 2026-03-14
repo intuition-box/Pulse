@@ -6,11 +6,9 @@
   gap: var(--space-6);
 }
 
-/* ── Composer section ───────────────────────────────────────────────────── */
+/* ── Reply action ──────────────────────────────────────────────────────── */
 
-.composerSection {
-  background: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  padding: var(--space-5);
+.replyAction {
+  display: flex;
+  justify-content: center;
 }

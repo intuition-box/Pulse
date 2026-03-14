@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { MessageSquare } from "lucide-react";
 import { Button } from "@/components/Button/Button";
+import { EmptyState } from "@/components/EmptyState/EmptyState";
+import { ProtocolBadge } from "@/components/ProtocolBadge/ProtocolBadge";
 import { useComposerFlow } from "@/features/post/ExtractionWorkspace/hooks/useComposerFlow";
 import { ComposerBlock } from "@/features/post/ExtractionWorkspace/ComposerBlock";
 import { useToast } from "@/components/Toast/ToastContext";
@@ -34,6 +36,7 @@ export function ThemePageClient({ theme, rootPosts }: ThemePageClientProps) {
     themeSlug: theme.slug,
     parentPostId: null,
     themeAtomTermId: theme.atomTermId,
+    themeTitle: theme.name,
     onPublishSuccess: (postId) => {
       addToast("Debate created", "success", { label: "See", href: `/posts/${postId}` }, 6000);
     },
@@ -79,16 +82,16 @@ export function ThemePageClient({ theme, rootPosts }: ThemePageClientProps) {
       {/* Posts grid */}
       <section className={styles.postsSection}>
         {filteredPosts.length === 0 ? (
-          <div className={styles.emptyState}>
-            <p className={styles.emptyText}>
-              {searchQuery ? "No debates match your search." : "No debates yet in this theme."}
-            </p>
-            {!searchQuery && composerFlow.flow.walletConnected && (
-              <Button variant="secondary" onClick={() => composerFlow.openComposer()}>
-                Create first debate
-              </Button>
-            )}
-          </div>
+          <EmptyState
+            title={searchQuery ? "No debates match your search." : "No debates yet in this theme."}
+            action={
+              !searchQuery && composerFlow.flow.walletConnected ? (
+                <Button variant="secondary" onClick={() => composerFlow.openComposer()}>
+                  Create first debate
+                </Button>
+              ) : undefined
+            }
+          />
         ) : (
           <div className={styles.postsGrid}>
             {filteredPosts.map((post) => (
@@ -104,7 +107,7 @@ export function ThemePageClient({ theme, rootPosts }: ThemePageClientProps) {
                   </span>
                   {post.mainTripleTermIds.length > 0 && (
                     <TripleTooltip tripleTermIds={post.mainTripleTermIds}>
-                      <span className={styles.protocolBadge}>⛓</span>
+                      <ProtocolBadge>⛓</ProtocolBadge>
                     </TripleTooltip>
                   )}
                   <span className={styles.openThread}>Open →</span>

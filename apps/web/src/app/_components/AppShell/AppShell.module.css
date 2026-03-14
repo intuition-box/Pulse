@@ -1,36 +1,20 @@
 /* ════════════════════════════════════════════════════════════════════════════
-   APP SHELL — Fixed sidebar + content offset
+   APP SHELL — Fixed sidebar + content offset (mobile-first)
    ════════════════════════════════════════════════════════════════════════════ */
 
-/* ── Sidebar: fixed, full height ─────────────────────────────────────── */
+/* ── Sidebar: hidden on mobile ─────────────────────────────────────── */
 
 .sidebar {
-  position: fixed;
-  left: 0;
-  top: 0;
-  width: 240px;
-  height: 100vh;
-  z-index: 60;
-  overflow-y: auto;
-  background: var(--bg-page);
-  transition: width 200ms ease;
+  display: none;
 }
 
-.sidebarCollapsed {
-  width: 64px;
-}
-
-/* ── Content: offset by sidebar width ────────────────────────────────── */
+/* ── Content: full-width on mobile ─────────────────────────────────── */
 
 .content {
-  margin-left: 240px;
+  margin-left: 0;
   min-height: 100vh;
   background: var(--bg-page);
   transition: margin-left 200ms ease;
-}
-
-.contentCollapsed {
-  margin-left: 64px;
 }
 
 /* ── Main column: topbar (sticky) + page content ─────────────────────── */
@@ -43,9 +27,10 @@
 }
 
 .topbar {
+  display: none;
   position: sticky;
   top: 0;
-  z-index: 50;
+  z-index: var(--z-sidebar);
   flex-shrink: 0;
   transition: opacity 200ms ease;
 }
@@ -57,12 +42,13 @@
 
 .main {
   flex: 1;
-  padding: var(--space-6) var(--space-8);
+  padding: var(--space-4);
+  padding-bottom: calc(var(--space-4) + 64px);
   max-width: 100%;
 }
 
 .bottomNav {
-  display: none;
+  display: block;
 }
 
 /* ── Homepage: page scrolls naturally ────────────────────────────────── */
@@ -72,24 +58,44 @@
   height: auto;
 }
 
-/* ── Mobile ──────────────────────────────────────────────────────────── */
+/* ── Desktop ─────────────────────────────────────────────────────────── */
 
-@media (max-width: 768px) {
+@media (min-width: 769px) {
   .sidebar {
-    display: none;
+    display: block;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 240px;
+    height: 100vh;
+    z-index: var(--z-sidebar);
+    overflow-y: auto;
+    background: var(--bg-page);
+    transition: width 200ms ease;
   }
 
-  .content,
+  .sidebarCollapsed {
+    width: 64px;
+  }
+
+  .content {
+    margin-left: 240px;
+  }
+
   .contentCollapsed {
-    margin-left: 0;
+    margin-left: 64px;
   }
 
-  .bottomNav {
+  .topbar {
     display: block;
   }
 
+  .bottomNav {
+    display: none;
+  }
+
   .main {
-    padding: var(--space-4);
-    padding-bottom: calc(var(--space-4) + 64px);
+    padding: var(--space-6) var(--space-8);
+    padding-bottom: 0;
   }
 }

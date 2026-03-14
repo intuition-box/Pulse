@@ -19,7 +19,7 @@ Debate App is a social debate platform where every contribution is decomposed in
 |-------|-----------|
 | Frontend | Next.js 16, React 19 |
 | Database | PostgreSQL 16, Prisma 7 |
-| LLM | Mastra, OpenAI-compatible providers (Groq, GaiaNet) |
+| LLM | Vercel AI SDK, Groq |
 | Testing | Vitest |
 | Package manager | pnpm 10 (workspaces) |
 
@@ -42,20 +42,13 @@ debate-app/
 │   │   └── src/
 │   │       ├── agents/      # 5 specialized agents (selection, decomposition,
 │   │       │                #   graph-extractor, relation, stance-verification)
-│   │       ├── providers/   # LLM provider configs (Groq, GaiaNet)
+│   │       ├── providers/   # LLM provider configs (Groq)
 │   │       └── claimify/    # Sentence splitting utilities
 │   │
-│   └── core/                # Shared types & hashing
-│       └── src/
-│           ├── types.ts     # Triple, NestedEdge, TermRef, Stance
-│           └── stableKey.ts # Deterministic keccak256 hashing
-│
 └── docker-compose.yml       # PostgreSQL 16
 ```
 
-**`packages/core`** defines the semantic primitives shared across the monorepo: `Triple` (S-P-O with stableKey), `NestedEdge` (inter-triple relations), and `TermRef` (atom or triple references). All keys are deterministic keccak256 hashes for on-chain deduplication.
-
-**`packages/agents`** implements the multi-stage extraction pipeline using Mastra agents. Each stage (selection, decomposition, graph extraction, relation detection, stance verification) runs through an LLM with structured Zod-validated output. GaiaNet is the primary provider with automatic Groq fallback.
+**`packages/agents`** implements the extraction pipeline and deterministic post-processing using the Vercel AI SDK, Groq, and local helpers for canonicalization, nested edges, stance checks, and atom matching.
 
 **`apps/web`** is the Next.js application handling both the UI (React 19 + Radix) and the API layer. Proposals live in React state during the composition flow and are published atomically on-chain via the Intuition SDK.
 
@@ -113,10 +106,7 @@ Copy `apps/web/.env.example` to `apps/web/.env` and fill in the values:
 | `SESSION_SECRET` | Random string, min 32 characters (required in production) |
 | `NEXT_PUBLIC_INTUITION_CHAIN_ID` | Intuition network chain ID (`13579` for testnet) |
 | `NEXT_PUBLIC_INTUITION_GRAPHQL_URL` | Intuition GraphQL endpoint |
-| `GAIANET_NODE_URL` | GaiaNet LLM node URL (primary provider) |
-| `GAIANET_API_KEY` | GaiaNet API key |
-| `GAIANET_MODEL` | GaiaNet model name |
-| `GROQ_API_KEY` | Groq API key (fallback provider) |
+| `GROQ_API_KEY` | Groq API key |
 | `GROQ_MODEL` | Groq model name |
 
 ## Architecture
@@ -172,7 +162,6 @@ The local database (5 tables) stores references only — never duplicates Intuit
 |-------|--------|-------------|
 | `/api/auth/siwe` | POST | Sign-In with Ethereum |
 | `/api/auth/session` | GET | Current session |
-| `/api/auth/logout` | POST | Sign out |
 | `/api/extract` | POST | Extract triples from text |
 | `/api/publish/prepare` | POST | Lock submission for publish |
 | `/api/publish` | POST | Publish posts on-chain (multi-post) |

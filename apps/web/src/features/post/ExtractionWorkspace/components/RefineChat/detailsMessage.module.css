@@ -1,0 +1,324 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-small);
+  max-width: 100%;
+}
+
+.postGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+}
+
+.postHeader {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-2xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.tripleRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1-5) 0;
+  border-top: 1px solid var(--border-default);
+}
+
+.tripleRow:first-child {
+  border-top: none;
+}
+
+.tripleSummary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  user-select: none;
+}
+
+.tripleSummary:hover {
+  color: var(--accent-blue);
+}
+
+.expandIcon {
+  flex-shrink: 0;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  transition: transform var(--transition-fast);
+}
+
+.expandIcon[data-expanded="true"] {
+  transform: rotate(90deg);
+}
+
+.tripleInline {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-small);
+  color: var(--text-primary);
+}
+
+.tripleMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.badgeNew {
+  display: inline-flex;
+  padding: 0 var(--space-1-5);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
+  color: var(--accent-blue);
+  font-size: var(--font-size-2xs);
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.onchainId {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  opacity: 0.7;
+}
+
+.metrics {
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.metricsWarning {
+  composes: metrics;
+  color: var(--color-amber-400);
+}
+
+.atomList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-left: var(--space-4);
+}
+
+.atomRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-small);
+}
+
+.atomField {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  min-width: 1.5rem;
+}
+
+.atomLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.editBtn {
+  flex-shrink: 0;
+  padding: 0 var(--space-1-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: var(--font-size-2xs);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.editBtn:hover {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+}
+
+.nestedRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-left: var(--space-3);
+  border-left: 2px solid var(--border-default);
+  margin-top: var(--space-1);
+}
+
+.editPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  padding: var(--space-2);
+  margin-left: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-page);
+}
+
+.editCurrentLabel {
+  min-width: 0;
+  padding: 0 var(--space-0-5);
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}
+
+.editInput {
+  width: 100%;
+  padding: var(--space-1-5) var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-small);
+  outline: none;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+.editInput:focus {
+  border-color: var(--accent-blue);
+}
+
+.editResults {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.editResultRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1-5);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.editResultRow:hover {
+  background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+}
+
+.editResultLabel {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--font-size-small);
+  color: var(--text-primary);
+}
+
+.scrollingLabel {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.scrollingLabelText {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.scrollingLabel[data-overflow="true"] .scrollingLabelText {
+  animation: labelScroll var(--label-scroll-duration, 8s) ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrollingLabel[data-overflow="true"] .scrollingLabelText {
+    animation: none;
+  }
+}
+
+@keyframes labelScroll {
+  0%,
+  12% {
+    transform: translateX(0);
+  }
+
+  45%,
+  55% {
+    transform: translateX(calc(-1 * var(--label-scroll-distance)));
+  }
+
+  88%,
+  100% {
+    transform: translateX(0);
+  }
+}
+
+.newAtomRow {
+  border-top: 1px dashed var(--border-default);
+  margin-top: var(--space-1);
+  padding-top: var(--space-1);
+  color: var(--accent-blue);
+}
+
+.editResultMetrics {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.metricChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.editActions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.editClose {
+  padding: var(--space-0-5) var(--space-2);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  background: transparent;
+  font-size: var(--font-size-2xs);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.editClose:hover {
+  border-color: var(--text-secondary);
+}
+
+.editLoading {
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+  font-style: italic;
+  padding: var(--space-1) 0;
+}
+
+.atomError {
+  margin: 0;
+  font-size: var(--font-size-2xs);
+  color: var(--color-error);
+  line-height: 1.4;
+}

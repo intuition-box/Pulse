@@ -5,7 +5,7 @@
   gap: var(--space-2);
   appearance: none;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-lg);
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -14,7 +14,7 @@
   cursor: pointer;
   transition: background var(--transition-fast), color var(--transition-fast),
     border-color var(--transition-fast), box-shadow var(--transition-fast),
-    transform var(--transition-fast);
+    transform 200ms var(--ease-spring);
 }
 
 .button:focus-visible {
@@ -23,7 +23,7 @@
 }
 
 .button:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: scale(0.96);
 }
 
 .button:disabled {
@@ -48,14 +48,14 @@
 /* ── Variants ───────────────────────────────────────────────────────────── */
 
 .primary {
-  background: var(--button-primary-bg);
-  color: var(--button-primary-text);
-  border-color: var(--button-primary-bg);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-accent) 25%, transparent);
 }
 
 .primary:hover:not(:disabled) {
-  background: var(--button-primary-bg-hover);
-  border-color: var(--button-primary-bg-hover);
+  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
 }
 
 .secondary {
@@ -93,13 +93,24 @@
 
 .danger {
   background: var(--color-red-500);
-  color: #fff;
+  color: var(--color-white);
   border-color: var(--color-red-500);
 }
 
 .danger:hover:not(:disabled) {
-  background: var(--color-red-600, #dc2626);
-  border-color: var(--color-red-600, #dc2626);
+  background: var(--color-red-600);
+  border-color: var(--color-red-600);
+}
+
+.success {
+  background: var(--stance-supports-accent);
+  color: var(--color-white);
+  border-color: var(--stance-supports-accent);
+}
+
+.success:hover:not(:disabled) {
+  background: var(--stance-supports-text);
+  border-color: var(--stance-supports-text);
 }
 
 /* ── Modifiers ─────────────────────────────────────────────────────────── */

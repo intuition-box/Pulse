@@ -1,6 +1,6 @@
 "use client";
 
-import { Composer } from "@/app/_components/Composer/Composer";
+import { Composer } from "@/features/post/Composer/Composer";
 import { ExtractionFlowDialog } from "./ExtractionFlowDialog";
 import type { UseComposerFlowResult } from "./hooks/useComposerFlow";
 
@@ -15,8 +15,6 @@ export function ComposerBlock({ composerFlow, className }: Props) {
     composerOpen,
     dialogOpen,
     setDialogOpen,
-    dialogStep,
-    setDialogStep,
     handleExtract,
     closeComposer,
   } = composerFlow;
@@ -45,8 +43,6 @@ export function ComposerBlock({ composerFlow, className }: Props) {
         flow={flow}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        step={dialogStep}
-        onStepChange={setDialogStep}
       />
     </>
   );

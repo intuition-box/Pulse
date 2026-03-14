@@ -105,7 +105,7 @@ export function ConfidenceSlider({
           onChange={handleChange}
           disabled={busy}
           aria-label="Confidence level"
-          aria-valuemin={-max}
+          aria-valuemin={Number(-max)}
           aria-valuemax={max}
           aria-valuenow={sliderValue}
           aria-valuetext={formatAriaValueText(sliderValue)}

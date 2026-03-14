@@ -7,7 +7,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--space-1);
-  padding: var(--space-3);
+  padding: var(--space-2);
   position: relative;
 }
 
@@ -56,8 +56,8 @@
 /* ─── Ancestor nodes ─────────────────────────────────────────────────────── */
 
 .ancestorNode {
-  width: 40px;
-  height: 24px;
+  width: 32px;
+  height: 20px;
   background: var(--bg-surface);
   border-color: var(--border-default);
 }
@@ -71,8 +71,8 @@
 /* ─── Focus node (accent blue) ───────────────────────────────────────────── */
 
 .focusNode {
-  width: 70px;
-  height: 36px;
+  width: 56px;
+  height: 30px;
   background: var(--color-accent);
   border-color: var(--color-accent);
 }
@@ -85,8 +85,8 @@
 /* ─── Child nodes (stance-colored) ───────────────────────────────────────── */
 
 .childNode {
-  width: 40px;
-  height: 24px;
+  width: 32px;
+  height: 20px;
 }
 
 .childSUPPORTS {
@@ -129,13 +129,13 @@
   position: fixed;
   transform: translate(-50%, -100%);
   min-width: 200px;
-  max-width: 320px;
+  max-width: 240px;
   padding: var(--space-3);
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
-  z-index: 100;
+  z-index: var(--z-overlay);
   pointer-events: none;
   animation: tooltipFadeIn var(--transition-fast);
 }
@@ -188,26 +188,26 @@
 
 
 /* ────────────────────────────────────────────────────────────────────────────
-   RESPONSIVE
+   DESKTOP
    ──────────────────────────────────────────────────────────────────────────── */
 
-@media (max-width: 768px) {
+@media (min-width: 769px) {
   .miniTree {
-    padding: var(--space-2);
+    padding: var(--space-3);
   }
 
   .ancestorNode,
   .childNode {
-    width: 32px;
-    height: 20px;
+    width: 40px;
+    height: 24px;
   }
 
   .focusNode {
-    width: 56px;
-    height: 30px;
+    width: 70px;
+    height: 36px;
   }
 
   .tooltip {
-    max-width: 240px;
+    max-width: 320px;
   }
 }

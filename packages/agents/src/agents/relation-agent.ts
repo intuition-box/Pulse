@@ -1,8 +1,7 @@
-import { Agent } from "@mastra/core/agent";
+import { generateObject } from "ai";
+import type { LanguageModel } from "ai";
 import { z } from "zod";
-import { getGaia, getGaiaModelName } from "../providers/gaia.js";
-import { getGroq } from "../providers/groq.js";
-import { getGroqModelName } from "../providers/env.js";
+
 
 export const RelationSchema = z.object({
   relations: z
@@ -12,14 +11,10 @@ export const RelationSchema = z.object({
         to: z.number().int().nonnegative(),
         predicate: z.string().min(1),
       })
-    )
-    .default([]),
+    ),
 });
 
-export const relationAgent = new Agent({
-  name: "Relation Linker (explicit markers only, direction-safe)",
-  model: getGaia().chatModel(getGaiaModelName()),
-  instructions: `
+const RELATION_SYSTEM = `
 You are a sentence-level relation linker.
 
 Your job is NOT to judge truth or stance.
@@ -49,8 +44,6 @@ ALLOWED PREDICATES (use exactly these strings):
 - "if"
 - "unless"
 - "when"
-- "and"
-- "or"
 - "could lead to"
 - "may lead to"
 - "might lead to"
@@ -58,13 +51,20 @@ ALLOWED PREDICATES (use exactly these strings):
 
 CRITICAL CONSTRAINTS:
 1) Only output a relation if there is an EXPLICIT marker in the original sentence.
-   Markers include: but/however/although/yet, because, therefore/so, if/unless/when, or, and,
+   Markers include: but/however/although/yet, because, therefore/so, if/unless/when,
    and which-clauses of the form ", which could/may/might/will ...".
 2) Never invent support/refute (stance belongs elsewhere).
 3) Never output predicates outside the allowed list.
 4) Prefer linking adjacent claims (index i to i+1) unless a marker clearly links non-adjacent.
 5) No self-links.
 6) If uncertain, output no relation.
+7) Do NOT link claims that are simply conjoined by "and" or "or" — these are not logical discourse relations.
+
+MARKER NORMALIZATION:
+- "yet" in sentence => use predicate "but" (contrast)
+- "though" in sentence => use predicate "although" (concession)
+- "since" (causal sense) => use predicate "because"
+- "hence"/"thus" => use predicate "therefore"
 
 DIRECTION RULES:
 - Contrast: "A but B" => link (A) --but--> (B)
@@ -79,16 +79,28 @@ DIRECTION RULES:
 - Which-clause consequence:
   "A, which could/may/might/will B" => link (A) --(modal lead to)--> (B)
 
-AND/OR:
-- Use "and" ONLY if the sentence explicitly joins two independent propositions.
-- Use "or" ONLY if the sentence explicitly presents an alternative between propositions.
+Return 0-6 relations maximum.
 
-Return 0–6 relations maximum.
-`,
-});
+FULL EXAMPLE:
 
-export const relationAgentGroq = new Agent({
-  name: "Claimify-Relation+Normalize (Groq)",
-  model: getGroq().chatModel(getGroqModelName()),
-  instructions: relationAgent.instructions,
-});
+Input:
+{
+  "sentence": "Nuclear energy reduces CO2, but it produces radioactive waste.",
+  "claims": [
+    { "index": 0, "text": "Nuclear energy reduces CO2.", "core_triple": "(Nuclear energy | reduces | CO2)" },
+    { "index": 1, "text": "Nuclear energy produces radioactive waste.", "core_triple": "(Nuclear energy | produces | radioactive waste)" }
+  ]
+}
+Output: { "relations": [{ "from": 0, "to": 1, "predicate": "but" }] }
+`;
+
+export async function runRelationLinking(model: LanguageModel, prompt: string) {
+  const { object } = await generateObject({
+    model,
+    schema: RelationSchema,
+    system: RELATION_SYSTEM,
+    prompt,
+    providerOptions: { groq: { structuredOutputs: true } },
+  });
+  return object;
+}
