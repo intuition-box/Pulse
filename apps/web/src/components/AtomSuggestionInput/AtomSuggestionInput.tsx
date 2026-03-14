@@ -29,6 +29,10 @@ type AtomSuggestionInputProps = {
   onUnlock: () => void;
   onCreateNew?: (label: string) => void;
   hideCreateNew?: boolean;
+  /** Auto-match confidence (0-1). Orange dot shown when < 0.7 */
+  confidence?: number | null;
+  /** When false, hides the "Change" button on locked atoms. Default true. */
+  allowUnlock?: boolean;
 };
 
 const MIN_QUERY_LENGTH = 2;
@@ -147,6 +151,8 @@ export function AtomSuggestionInput({
   onUnlock,
   onCreateNew,
   hideCreateNew,
+  confidence,
+  allowUnlock = true,
 }: AtomSuggestionInputProps) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -340,10 +346,15 @@ export function AtomSuggestionInput({
             <span className={styles.lockId} title={lockedAtomId}>
               {formatAtomId(lockedAtomId)}
             </span>
+            {confidence !== null && confidence !== undefined && confidence < 0.7 && (
+              <span className={styles.reviewDot} title="Auto-matched — review recommended" />
+            )}
           </span>
-          <Button size="sm" variant="ghost" onClick={onUnlock}>
-            Change
-          </Button>
+          {allowUnlock && (
+            <Button size="sm" variant="ghost" onClick={onUnlock}>
+              Change
+            </Button>
+          )}
         </div>
       )}
 

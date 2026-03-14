@@ -5,7 +5,7 @@
 .wrapper {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: 2px;
 }
 
 /* ── Size variants ───────────────────────────────────────────────────── */
@@ -16,6 +16,7 @@
 /* ── Button base ─────────────────────────────────────────────────────── */
 
 .btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   border: none;
@@ -25,12 +26,13 @@
   color: var(--text-muted);
   cursor: pointer;
   border-radius: var(--radius-sm);
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: background var(--transition-fast), color var(--transition-fast),
+    transform 300ms var(--ease-spring);
   line-height: 1;
 }
 
 .btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
   color: var(--text-primary);
 }
 
@@ -43,21 +45,21 @@
 
 .activeSupport {
   color: var(--stance-supports-text);
-  background: rgba(45, 212, 191, 0.1);
+  background: color-mix(in srgb, var(--stance-supports-text) 10%, transparent);
 }
 
 .activeSupport:hover:not(:disabled) {
-  background: rgba(45, 212, 191, 0.15);
+  background: color-mix(in srgb, var(--stance-supports-text) 15%, transparent);
   color: var(--stance-supports-text);
 }
 
 .activeOppose {
   color: var(--stance-refutes-text);
-  background: rgba(251, 113, 133, 0.1);
+  background: color-mix(in srgb, var(--stance-refutes-text) 10%, transparent);
 }
 
 .activeOppose:hover:not(:disabled) {
-  background: rgba(251, 113, 133, 0.15);
+  background: color-mix(in srgb, var(--stance-refutes-text) 15%, transparent);
   color: var(--stance-refutes-text);
 }
 
@@ -76,4 +78,36 @@
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* ── Vote bounce animation ─────────────────────────────────────────────── */
+
+.voteBounce {
+  transform: scale(1.25);
+}
+
+.voteBounce.activeSupport { background: color-mix(in srgb, var(--stance-supports-text) 20%, transparent); }
+.voteBounce.activeOppose  { background: color-mix(in srgb, var(--stance-refutes-text) 20%, transparent); }
+
+/* ── Float "+1" animation ──────────────────────────────────────────────── */
+
+.btn::after {
+  content: attr(data-float);
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.625rem;
+  font-weight: 700;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.floatUp::after {
+  animation: floatUp 600ms var(--ease-out-back) forwards;
+}
+
+@keyframes floatUp {
+  0%   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
 }

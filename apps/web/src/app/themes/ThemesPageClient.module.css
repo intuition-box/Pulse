@@ -3,8 +3,8 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  z-index: 100;
+  background: var(--overlay-bg);
+  z-index: var(--z-overlay);
   animation: fadeIn 180ms ease;
 }
 
@@ -22,7 +22,7 @@
   transform: translate(-50%, -50%);
   width: 480px;
   max-width: 92vw;
-  z-index: 101;
+  z-index: var(--z-modal);
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
@@ -121,12 +121,12 @@
 .error {
   margin: 0;
   font-size: var(--font-size-small);
-  color: var(--color-error, #ef4444);
+  color: var(--color-error);
 }
 
 .hint {
   margin: 0;
-  font-size: var(--font-size-xsmall);
+  font-size: var(--font-size-2xs);
   color: var(--text-muted);
 }
 

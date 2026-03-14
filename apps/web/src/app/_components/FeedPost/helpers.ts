@@ -1,7 +1,3 @@
-import { labels } from "@/lib/vocabulary";
-
-type UserInfo = { displayName: string | null; address: string; avatar: string | null };
-
 export function truncate(text: string, maxLen: number) {
   if (text.length <= maxLen) return text;
   return text.slice(0, maxLen).trimEnd() + "\u2026";
@@ -17,19 +13,4 @@ export function formatRelativeTime(isoDate: string) {
   const days = Math.floor(hrs / 24);
   if (days < 30) return `${days}d`;
   return new Date(isoDate).toLocaleDateString();
-}
-
-export function displayName(user: UserInfo) {
-  return user.displayName || `${user.address.slice(0, 6)}\u2026${user.address.slice(-4)}`;
-}
-
-export function stanceLabel(stance: string) {
-  switch (stance) {
-    case "SUPPORTS":
-      return labels.stanceSupports;
-    case "REFUTES":
-      return labels.stanceRefutes;
-    default:
-      return stance;
-  }
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Search, Loader2, Filter } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState/EmptyState";
 import { ThemeBadge } from "@/components/ThemeBadge/ThemeBadge";
 import styles from "./SearchBar.module.css";
 
@@ -174,7 +175,7 @@ export function SearchBar() {
 
       {showDropdown && query.trim().length >= 2 && suggestions.length === 0 && !loading && (
         <div className={styles.dropdown}>
-          <div className={styles.noResults}>No posts found for &quot;{query}&quot;</div>
+          <EmptyState title={`No posts found for "${query}"`} compact />
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAccount, useChainId, usePublicClient, useSwitchChain, useWalletClient } from "wagmi";
 import { getMultiVaultAddressFromChainId } from "@0xintuition/sdk";
 import { formatEther, parseEther } from "viem";
@@ -71,7 +71,7 @@ export function ConnectedConfidenceSlider({
   }, []);
 
   // Load user position
-  async function fetchUserPosition(termId: string) {
+  const fetchUserPosition = useCallback(async (termId: string) => {
     try {
       const url = address
         ? `/api/vaults/${termId}?address=${address}`
@@ -90,14 +90,14 @@ export function ConnectedConfidenceSlider({
     } catch {
       setExistingDirection(null);
     }
-  }
+  }, [address]);
 
   useEffect(() => {
     setExistingDirection(null);
     setActionStatus("idle");
     setActionMsg(null);
     if (tripleTermId) fetchUserPosition(tripleTermId);
-  }, [tripleTermId, address]);
+  }, [tripleTermId, fetchUserPosition]);
 
   async function handleConfirm(result: ConfidenceSliderResult) {
     if (!walletClient || !publicClient) return;

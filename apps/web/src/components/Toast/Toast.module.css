@@ -2,7 +2,7 @@
   position: fixed;
   top: var(--space-4);
   right: var(--space-4);
-  z-index: 9999;
+  z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -32,7 +32,7 @@
 }
 
 .toast.success {
-  border-left: 4px solid var(--color-emerald-500);
+  border-left: 4px solid var(--stance-supports-accent);
 }
 
 .toast.error {

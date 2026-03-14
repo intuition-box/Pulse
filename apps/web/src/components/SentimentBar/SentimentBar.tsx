@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/Skeleton/Skeleton";
 import { SentimentCircle } from "./SentimentCircle";
 import styles from "./SentimentBar.module.css";
 
@@ -23,8 +24,8 @@ export function SentimentBar({
   if (loading) {
     return (
       <div className={styles.wrapper}>
-        <div className={styles.skeleton} />
-        <div className={styles.skeletonRow} />
+        <Skeleton height="8px" variant="rect" />
+        <Skeleton width="40%" height="14px" />
       </div>
     );
   }

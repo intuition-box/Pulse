@@ -2,7 +2,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  padding: 0.25rem 0.65rem;
+  padding: 0.3rem 0.75rem;
   border-radius: var(--radius-md);
   font-family: var(--font-display);
   font-size: 0.6875rem;
@@ -29,16 +29,16 @@
 }
 
 .warning {
-  background: rgba(245, 158, 11, 0.12);
-  color: #FBBF24;
-  border-color: rgba(245, 158, 11, 0.3);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-amber-400);
+  border-color: color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
 /* Danger uses system red, NOT stance rose — for errors/toasts */
 .danger {
-  background: rgba(239, 68, 68, 0.12);
-  color: #FCA5A5;
-  border-color: rgba(239, 68, 68, 0.3);
+  background: color-mix(in srgb, var(--color-red-500) 12%, transparent);
+  color: var(--color-rose-400);
+  border-color: color-mix(in srgb, var(--color-red-500) 30%, transparent);
 }
 
 /* ── Stance badges — dot indicator ───────────────────────────────────── */
@@ -73,26 +73,37 @@
   flex-shrink: 0;
 }
 
-/* ── Protocol / On-chain badge ─────────────────────────────────────────── */
-
-.protocol {
-  background: var(--bg-muted);
-  color: var(--text-secondary);
-  border-color: var(--border-default);
-  font-family: var(--font-mono);
-  letter-spacing: 0.04em;
-}
-
-.protocol::before {
-  content: "\25C6";
-  font-size: 0.5rem;
-  color: var(--color-accent);
-}
-
 /* ── Theme / Category badge ──────────────────────────────────────────── */
 
 .theme {
   background: color-mix(in srgb, var(--color-accent) 12%, transparent);
   color: var(--color-accent);
   border-color: color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+/* ── Streak (gold/orange gradient) ─────────────────────────────────────── */
+
+.streak {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-gold) 15%, transparent), color-mix(in srgb, var(--color-amber-700) 15%, transparent));
+  color: var(--color-gold);
+  border-color: color-mix(in srgb, var(--color-gold) 30%, transparent);
+}
+
+/* ── Animated modifier ─────────────────────────────────────────────────── */
+
+.animated {
+  animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* ── Desktop padding ───────────────────────────────────────────────────── */
+
+@media (min-width: 769px) {
+  .badge {
+    padding: 0.25rem 0.65rem;
+  }
 }

@@ -17,7 +17,7 @@ export type ReplyTarget = {
 
 type FeedThreadProps = {
   post: FeedPostData;
-  onBadgeClick?: (tripleTermIds: string[]) => void;
+  onBadgeClick?: (tripleTermIds: string[], postId: string) => void;
   onReply?: (target: ReplyTarget) => void;
   composerSlot?: (postId: string) => ReactNode;
   loadMoreReplies?: LoadMoreRepliesFn;

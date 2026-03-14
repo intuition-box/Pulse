@@ -63,11 +63,11 @@ export function VoteSection({ tripleTermId, refreshKey = 0 }: VoteSectionProps) 
     } finally {
       setLoading(false);
     }
-  }, [tripleTermId, address, refreshKey]);
+  }, [tripleTermId, address]);
 
   useEffect(() => {
     fetchVaultData();
-  }, [fetchVaultData]);
+  }, [fetchVaultData, refreshKey]);
 
   return (
     <div className={styles.wrapper}>

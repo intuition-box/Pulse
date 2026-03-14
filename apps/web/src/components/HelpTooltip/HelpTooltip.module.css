@@ -1,0 +1,37 @@
+
+
+.content {
+  max-width: 260px;
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  color: var(--text-secondary);
+  z-index: var(--z-tooltip);
+  animation: fadeIn 150ms ease;
+}
+
+.content[data-state="delayed-open"] {
+  animation: fadeIn 150ms ease;
+}
+
+.content[data-state="closed"] {
+  animation: fadeOut 100ms ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.97); }
+}
+
+.arrow {
+  fill: var(--bg-surface);
+}

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { ThumbsUp, ThumbsDown, Loader2 } from "lucide-react";
 import styles from "./ThumbVote.module.css";
 
@@ -23,12 +24,38 @@ export function ThumbVote({
   size = "sm",
 }: ThumbVoteProps) {
   const iconSize = size === "sm" ? 14 : 18;
+  const [bouncing, setBouncing] = useState<"support" | "oppose" | null>(null);
+  const prevBusy = useRef(busy);
+  const prevDirection = useRef(userDirection);
+
+  // Trigger animation after vote confirmation (busy true→false + direction changed)
+  useEffect(() => {
+    if (prevBusy.current && !busy && userDirection !== prevDirection.current && userDirection) {
+      const dir = userDirection;
+      // Defer setState to avoid synchronous cascade (react-hooks/set-state-in-effect)
+      const startTimer = setTimeout(() => setBouncing(dir), 0);
+      const endTimer = setTimeout(() => setBouncing(null), 600);
+      return () => { clearTimeout(startTimer); clearTimeout(endTimer); };
+    }
+    prevBusy.current = busy;
+    prevDirection.current = userDirection;
+  }, [busy, userDirection]);
+
+  function btnClass(dir: "support" | "oppose") {
+    const active = dir === "support" ? styles.activeSupport : styles.activeOppose;
+    return [
+      styles.btn,
+      userDirection === dir && active,
+      bouncing === dir && styles.voteBounce,
+      bouncing === dir && styles.floatUp,
+    ].filter(Boolean).join(" ");
+  }
 
   return (
     <div className={`${styles.wrapper} ${styles[size]}`}>
       <button
         type="button"
-        className={`${styles.btn} ${userDirection === "support" ? styles.activeSupport : ""}`}
+        className={btnClass("support")}
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
@@ -36,6 +63,7 @@ export function ThumbVote({
         }}
         disabled={disabled || busy}
         aria-label={`Support (${forCount})`}
+        data-float={bouncing === "support" ? "+1" : ""}
       >
         {busy && busyDirection === "support" ? (
           <Loader2 size={iconSize} className={styles.spinner} />
@@ -47,7 +75,7 @@ export function ThumbVote({
 
       <button
         type="button"
-        className={`${styles.btn} ${userDirection === "oppose" ? styles.activeOppose : ""}`}
+        className={btnClass("oppose")}
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
@@ -55,6 +83,7 @@ export function ThumbVote({
         }}
         disabled={disabled || busy}
         aria-label={`Oppose (${againstCount})`}
+        data-float={bouncing === "oppose" ? "+1" : ""}
       >
         {busy && busyDirection === "oppose" ? (
           <Loader2 size={iconSize} className={styles.spinner} />

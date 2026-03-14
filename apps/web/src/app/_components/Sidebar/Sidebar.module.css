@@ -33,9 +33,9 @@
   height: 36px;
   border-radius: var(--radius-md);
   background: var(--color-accent);
-  color: #070000;
+  color: var(--text-inverse);
   font-family: var(--font-display);
-  font-size: 0.875rem;
+  font-size: var(--font-size-small);
   font-weight: 700;
   letter-spacing: -0.02em;
   flex-shrink: 0;
@@ -43,7 +43,7 @@
 
 .logoText {
   font-family: var(--font-display);
-  font-size: 0.9375rem;
+  font-size: var(--font-size-base);
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.2;

@@ -6,7 +6,7 @@
 
 .searchWrapper {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
   width: 100%;
 }
@@ -20,7 +20,7 @@
 
 .icon {
   position: absolute;
-  left: 12px;
+  left: var(--space-3);
   color: var(--text-muted);
   pointer-events: none;
   z-index: 1;
@@ -28,7 +28,7 @@
 
 .loader {
   position: absolute;
-  right: 12px;
+  right: var(--space-3);
   color: var(--color-accent);
   animation: spin 1s linear infinite;
 }
@@ -44,12 +44,12 @@
 
 .input {
   width: 100%;
-  padding: 8px 40px 8px 40px;
+  padding: var(--space-2) 40px;
   border: 1px solid var(--input-border);
   border-radius: var(--radius-xl);
-  font-size: 14px;
+  font-size: var(--font-size-small);
   background-color: var(--input-bg);
-  transition: all 0.2s;
+  transition: all var(--transition-base);
 }
 
 .input:focus {
@@ -65,7 +65,7 @@
 /* Dropdown */
 .dropdown {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + var(--space-2));
   left: 0;
   right: 0;
   background: var(--bg-surface);
@@ -74,16 +74,16 @@
   box-shadow: var(--shadow-lg);
   max-height: 400px;
   overflow-y: auto;
-  z-index: 50;
+  z-index: var(--z-sidebar);
 }
 
 .suggestion {
   display: block;
-  padding: 12px 16px;
+  padding: var(--space-3) var(--space-4);
   text-decoration: none;
   color: inherit;
   border-bottom: 1px solid var(--border-subtle);
-  transition: background 0.15s;
+  transition: background var(--transition-fast);
   cursor: pointer;
 }
 
@@ -97,10 +97,10 @@
 
 .suggestionHeader {
   display: flex;
-  gap: 8px;
+  gap: var(--space-2);
   align-items: center;
-  margin-bottom: 4px;
-  font-size: 12px;
+  margin-bottom: var(--space-1);
+  font-size: var(--font-size-tiny);
 }
 
 .suggestionUser {
@@ -109,33 +109,26 @@
 }
 
 .suggestionBody {
-  font-size: 14px;
+  font-size: var(--font-size-small);
   color: var(--text-secondary);
   line-height: 1.4;
 }
 
 .viewAll {
   width: 100%;
-  padding: 12px 16px;
+  padding: var(--space-3) var(--space-4);
   background: none;
   border: none;
   color: var(--color-accent);
-  font-size: 14px;
+  font-size: var(--font-size-small);
   font-weight: 500;
   text-align: center;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--transition-fast);
 }
 
 .viewAll:hover {
   background: var(--bg-muted);
-}
-
-.noResults {
-  padding: 16px;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 14px;
 }
 
 /* Filter button */
@@ -143,13 +136,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
+  padding: var(--space-2);
   background: var(--bg-surface);
   border: 1px solid var(--input-border);
   border-radius: var(--radius-xl);
   color: var(--text-muted);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-base);
   flex-shrink: 0;
 }
 
@@ -167,30 +160,30 @@
 /* Filters */
 .filters {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--space-1));
   left: 0;
   right: 0;
   display: flex;
-  gap: 8px;
-  padding: 12px;
+  gap: var(--space-2);
+  padding: var(--space-3);
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg);
-  z-index: 49;
+  z-index: var(--z-sidebar);
 }
 
 .select {
   flex: 1;
-  padding: 6px 10px;
+  padding: var(--space-1-5) var(--space-2-5);
   border: 1px solid var(--input-border);
   border-radius: var(--radius-lg);
-  font-size: 14px;
+  font-size: var(--font-size-small);
   background: var(--input-bg);
   color: var(--text-secondary);
   color-scheme: dark;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: border-color var(--transition-base);
 }
 
 .select:focus {

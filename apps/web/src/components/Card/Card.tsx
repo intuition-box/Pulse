@@ -2,8 +2,10 @@ import type { HTMLAttributes } from "react";
 
 import styles from "./Card.module.css";
 
-export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  const classes = [styles.card, className].filter(Boolean).join(" ");
+type CardProps = HTMLAttributes<HTMLDivElement> & { interactive?: boolean };
+
+export function Card({ className, interactive, ...props }: CardProps) {
+  const classes = [styles.card, interactive && styles.interactive, className].filter(Boolean).join(" ");
   return <div className={classes} {...props} />;
 }
 

@@ -30,6 +30,7 @@ export function BurgerMenu() {
         <span className={styles.line} />
         <span className={styles.line} />
         <span className={styles.line} />
+        <span className={styles.label}>Menu</span>
       </button>
 
       {open && (

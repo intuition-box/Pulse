@@ -64,12 +64,12 @@
 
 .grid3 {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr;
   gap: var(--space-3);
 }
 
-@media (max-width: 768px) {
+@media (min-width: 769px) {
   .grid3 {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, 1fr);
   }
 }

@@ -6,34 +6,45 @@
   position: relative;
 }
 
+/* Base = mobile (BottomNav tab style) */
 .burger {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  width: 40px;
-  height: 40px;
+  gap: 3px;
+  width: auto;
+  height: auto;
   padding: 0;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-full);
-  background: var(--bg-inset);
+  border: none;
+  border-radius: 0;
+  background: transparent;
   cursor: pointer;
 }
 
 .line {
-  width: 20px;
-  height: 2px;
-  background: var(--text-primary);
+  width: 16px;
+  height: 1.5px;
+  background: var(--text-muted);
   border-radius: 1px;
   transition: transform var(--transition-fast);
+}
+
+.label {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  margin-top: 1px;
 }
 
 /* ── Dropdown ──────────────────────────────────────────────────────────── */
 
 .dropdown {
   position: absolute;
-  top: calc(100% + var(--space-2));
+  top: auto;
+  bottom: calc(100% + var(--space-2));
   right: 0;
   min-width: 200px;
   padding: var(--space-2);
@@ -41,12 +52,12 @@
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
-  z-index: 100;
+  z-index: var(--z-overlay);
   animation: fadeIn 150ms ease;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -80,4 +91,36 @@
   color: var(--text-muted);
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+/* Desktop: full burger button + dropdown opens downward */
+@media (min-width: 769px) {
+  .burger {
+    width: 40px;
+    height: 40px;
+    gap: 4px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-full);
+    background: var(--bg-inset);
+  }
+
+  .line {
+    width: 20px;
+    height: 2px;
+    background: var(--text-primary);
+  }
+
+  .label {
+    display: none;
+  }
+
+  .dropdown {
+    top: calc(100% + var(--space-2));
+    bottom: auto;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
 }

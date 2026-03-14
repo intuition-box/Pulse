@@ -4,6 +4,8 @@
 
 .wrapper {
   position: relative;
+  display: inline-flex;
+  align-items: center;
 }
 
 .clickable {
@@ -22,7 +24,7 @@
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
-  z-index: 100;
+  z-index: var(--z-tooltip);
   pointer-events: none;
   text-transform: none;
   animation: fadeIn var(--transition-fast);
@@ -82,7 +84,7 @@
 }
 
 .error {
-  color: #FB7185;
+  color: var(--stance-refutes-text);
 }
 
 /* ── Triple data — uses shared TripleInline component ──────────────── */

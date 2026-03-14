@@ -13,16 +13,7 @@ import {
 
 import { intuitionTestnet } from "@/lib/chain";
 import { useSessionAuth } from "@/features/post/ExtractionWorkspace/hooks/useSessionAuth";
-
-// ─── SDK config adapters (same pattern as publishSteps.ts) ──────────────────
-
-function sdkWriteConfig(wc: { walletClient: WalletClient; publicClient: PublicClient; multivaultAddress: Address }) {
-  return { walletClient: wc.walletClient, publicClient: wc.publicClient, address: wc.multivaultAddress };
-}
-
-function sdkReadConfig(wc: { publicClient: PublicClient; multivaultAddress: Address }) {
-  return { address: wc.multivaultAddress, publicClient: wc.publicClient };
-}
+import { sdkWriteConfig, sdkReadConfig } from "@/features/post/ExtractionWorkspace/publish";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

@@ -139,22 +139,22 @@
   );
 }
 
-/* Thumb — WebKit */
+/* Thumb — WebKit (mobile-first: larger for touch) */
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: var(--text-primary);
   border: 2px solid var(--border-default);
-  margin-top: -7px; /* center on 6px track */
+  margin-top: -9px; /* center on 6px track */
   transition: box-shadow var(--transition-fast);
 }
 
 /* Thumb — Firefox */
 .slider::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   background: var(--text-primary);
   border: 2px solid var(--border-default);
@@ -163,10 +163,10 @@
 
 /* Thumb glow per direction */
 .wrapper[data-direction="support"] .slider::-webkit-slider-thumb {
-  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.3);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.3);
 }
 .wrapper[data-direction="support"] .slider::-moz-range-thumb {
-  box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.3);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.3);
 }
 
 .wrapper[data-direction="oppose"] .slider::-webkit-slider-thumb {
@@ -247,17 +247,17 @@
   --button-primary-text: #fff;
 }
 
-/* ── Mobile ────────────────────────────────────────────────────────────── */
+/* ── Desktop ──────────────────────────────────────────────────────────── */
 
-@media (max-width: 640px) {
+@media (min-width: 641px) {
   .slider::-webkit-slider-thumb {
-    width: 24px;
-    height: 24px;
-    margin-top: -9px;
+    width: 20px;
+    height: 20px;
+    margin-top: -7px; /* center on 6px track */
   }
 
   .slider::-moz-range-thumb {
-    width: 24px;
-    height: 24px;
+    width: 20px;
+    height: 20px;
   }
 }
