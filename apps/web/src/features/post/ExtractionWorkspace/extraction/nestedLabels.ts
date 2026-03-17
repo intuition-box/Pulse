@@ -1,5 +1,6 @@
 import { atomKeyFromLabel } from "@db/agents";
-import type { ApiProposal, ProposalDraft, NestedProposalDraft, DerivedTripleDraft, NestedTermRef } from "./types";
+import type { NestedEdgeContext } from "@/lib/validation/semanticRelevance";
+import type { ApiProposal, ProposalDraft, NestedProposalDraft, DerivedTripleDraft, NestedTermRef, NestedEdgeLike } from "./types";
 import { safeDisplayLabel, resolveTermRefLabel } from "./display";
 
 export function buildNestedRefLabels(apiProposals: ApiProposal[]): Map<string, string> {
@@ -113,4 +114,78 @@ export function buildNestedRefLabelsFromState(
   }
 
   return labelMap;
+}
+
+export function resolveNestedLabels(
+  nestedEdges: NestedEdgeLike[],
+  labelMap: Map<string, string>,
+): Map<string, string> {
+  for (const e of nestedEdges) {
+    for (const ref of [e.subject, e.object]) {
+      if (ref.type === "triple" && ref.label && ref.tripleKey && !labelMap.has(ref.tripleKey)) {
+        labelMap.set(ref.tripleKey, ref.label);
+      }
+    }
+  }
+
+  let remaining = nestedEdges.filter((e) => e.stableKey && !labelMap.has(e.stableKey));
+  const MAX_ROUNDS = 10;
+  for (let round = 0; round < MAX_ROUNDS && remaining.length > 0; round++) {
+    const deferred: NestedEdgeLike[] = [];
+    for (const e of remaining) {
+      const subLabel = e.subject.label
+        ?? (e.subject.tripleKey ? labelMap.get(e.subject.tripleKey) : undefined);
+      const objLabel = e.object.label
+        ?? (e.object.tripleKey ? labelMap.get(e.object.tripleKey) : undefined);
+      if (subLabel && objLabel) {
+        labelMap.set(e.stableKey, `${subLabel} · ${e.predicate} · ${objLabel}`.trim());
+      } else {
+        deferred.push(e);
+      }
+    }
+    if (deferred.length === remaining.length) break;
+    remaining = deferred;
+  }
+  for (const e of remaining) {
+    if (labelMap.has(e.stableKey)) continue;
+    const subLabel = e.subject.label
+      ?? (e.subject.tripleKey ? labelMap.get(e.subject.tripleKey) : undefined) ?? "";
+    const objLabel = e.object.label
+      ?? (e.object.tripleKey ? labelMap.get(e.object.tripleKey) : undefined) ?? "";
+    labelMap.set(e.stableKey, `${subLabel} · ${e.predicate} · ${objLabel}`.trim());
+  }
+  return labelMap;
+}
+
+function mapEdgeKind(edgeKind: string): NestedEdgeContext["kind"] {
+  if (edgeKind === "conditional" || edgeKind === "meta" || edgeKind === "relation" || edgeKind === "modifier") return edgeKind;
+  return "modifier";
+}
+
+export function buildNestedEdgeContexts(
+  proposalStableKey: string,
+  nestedEdges: NestedEdgeLike[],
+  nestedRefLabels: Map<string, string>,
+): NestedEdgeContext[] {
+  const result: NestedEdgeContext[] = [];
+  const visited = new Set<string>();
+  const queue = [proposalStableKey];
+
+  while (queue.length > 0) {
+    const currentKey = queue.shift()!;
+    for (const edge of nestedEdges) {
+      if (visited.has(edge.stableKey)) continue;
+      const isSubRef = edge.subject.type === "triple" && edge.subject.tripleKey === currentKey;
+      const isObjRef = edge.object.type === "triple" && edge.object.tripleKey === currentKey;
+      if (!isSubRef && !isObjRef) continue;
+
+      visited.add(edge.stableKey);
+      const text = nestedRefLabels.get(edge.stableKey)
+        ?? `${edge.subject.label ?? ""} ${edge.predicate} ${edge.object.label ?? ""}`.trim();
+      result.push({ kind: mapEdgeKind(edge.edgeKind), text });
+
+      queue.push(edge.stableKey);
+    }
+  }
+  return result;
 }

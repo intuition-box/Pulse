@@ -7,6 +7,7 @@ export type TripleInput = {
   tripleTermId: string;
   isExisting: boolean;
   role: "MAIN" | "SUPPORTING";
+  stableKey?: string;
 
   sLabel?: string;
   pLabel?: string;
@@ -20,7 +21,8 @@ export function isValidTriple(value: unknown): value is TripleInput {
     typeof t.proposalId === "string" &&
     typeof t.tripleTermId === "string" &&
     typeof t.isExisting === "boolean" &&
-    (t.role === "MAIN" || t.role === "SUPPORTING")
+    (t.role === "MAIN" || t.role === "SUPPORTING") &&
+    (t.stableKey === undefined || typeof t.stableKey === "string")
   );
 }
 
@@ -29,6 +31,9 @@ export type NestedTripleInput = {
   tripleTermId: string;
   isExisting: boolean;
   role?: "MAIN" | "SUPPORTING";
+  chainLabel?: string;
+  edgeKind?: string;
+  ownerStableKey?: string;
 };
 
 export function isValidNestedTriple(value: unknown): value is NestedTripleInput {
@@ -38,7 +43,10 @@ export function isValidNestedTriple(value: unknown): value is NestedTripleInput 
     typeof t.nestedProposalId === "string" &&
     typeof t.tripleTermId === "string" &&
     typeof t.isExisting === "boolean" &&
-    (t.role === undefined || t.role === "MAIN" || t.role === "SUPPORTING")
+    (t.role === undefined || t.role === "MAIN" || t.role === "SUPPORTING") &&
+    (t.chainLabel === undefined || typeof t.chainLabel === "string") &&
+    (t.edgeKind === undefined || typeof t.edgeKind === "string") &&
+    (t.ownerStableKey === undefined || typeof t.ownerStableKey === "string")
   );
 }
 

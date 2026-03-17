@@ -7,6 +7,8 @@ import {
   type ApprovedProposalWithRole,
   type ApprovedTripleStatusState,
   type DerivedTripleDraft,
+  type DraftPost,
+  type MainRef,
   type NestedProposalDraft,
   type ProposalDraft,
 } from "../../extraction";
@@ -35,6 +37,7 @@ export type ProtocolDetailsProps = {
     existingAtoms: AtomInfo[];
   };
   proposals: ProposalDraft[];
+  draftPosts: DraftPost[];
   tripleSummary: {
     newTriples: { proposal: ApprovedProposalWithRole; tripleTermId: string | null }[];
     existingTriples: { proposal: ApprovedProposalWithRole; tripleTermId: string | null }[];
@@ -61,12 +64,14 @@ export type ProtocolDetailsProps = {
   directMainProposalIds?: Set<string>;
 
   mainNestedCount?: number;
+  mainRefByDraft: Map<string, MainRef | null>;
 };
 
 export function ProtocolDetails({
   approvedTripleStatus,
   atomSummary,
   proposals,
+  draftPosts,
   tripleSummary,
   existingTripleCount,
   minDeposit,
@@ -86,6 +91,7 @@ export function ProtocolDetails({
   tagTriples,
   directMainProposalIds,
   mainNestedCount = 0,
+  mainRefByDraft,
 }: ProtocolDetailsProps) {
   const newTermCount = atomSummary.newAtoms.length;
   const newClaimCount = tripleSummary.newTriples.length;
@@ -116,6 +122,33 @@ export function ProtocolDetails({
   const summaryLabel = approvedTripleStatus === "checking"
     ? "Resolving\u2026"
     : "See details";
+
+  const mainTargets = draftPosts.flatMap((draft, draftIndex) => {
+    const ref = mainRefByDraft.get(draft.id);
+    if (!ref || ref.type === "error") return [];
+    const mainTarget: MainTarget = ref.type === "proposal"
+      ? { type: "proposal", id: ref.id }
+      : { type: "nested", nestedId: ref.nestedId, nestedStableKey: ref.nestedStableKey };
+    return [{ draftId: draft.id, draftIndex, mainTarget }];
+  });
+
+  const mainOuterNestedKeys = new Set<string>(
+    mainTargets
+      .filter((e) => e.mainTarget.type === "nested")
+      .map((e) => (e.mainTarget as { type: "nested"; nestedStableKey: string }).nestedStableKey),
+  );
+
+  const supportingCoreTriples = tripleSummary.newTriples.filter((t) => {
+    if (directMainProposalIds?.has(t.proposal.id)) return false;
+    return true;
+  });
+  const supportingNestedEdges = nestedEdges.filter((edge) => !mainOuterNestedKeys.has(edge.stableKey));
+
+  // Derived triples that are also proposals would appear twice — filter them
+  const proposalStableKeys = new Set(proposals.map((p) => p.stableKey));
+  const orphanDerivedTriples = derivedTriples.filter((dt) => !proposalStableKeys.has(dt.stableKey));
+
+  const displayedClaimCount = mainTargets.length + supportingCoreTriples.length + supportingNestedEdges.length + orphanDerivedTriples.length;
 
   return (
     <details className={styles.protocolDetails}>
@@ -148,14 +181,27 @@ export function ProtocolDetails({
                 <em className={styles.pdFeeValue}>{formatCost(newClaimCost)} {currencySymbol}</em>
               </summary>
 
-              {(newClaimCount > 0 || nestedEdges.length > 0 || derivedTriples.length > 0) && (
+              {displayedClaimCount > 0 && (
                 <details className={styles.pdSubSection} open>
                   <summary className={styles.pdSubSummary}>
-                    {labels.publishedClaimsLabel} ({newClaimCount + nestedEdges.length + derivedTriples.length})
+                    {labels.publishedClaimsLabel} ({displayedClaimCount})
                   </summary>
                   <ul className={styles.pdFeeDetail}>
-                    {tripleSummary.newTriples.map((t, i) => (
-                      <li key={i}>
+                    {mainTargets.map((entry) => (
+                      <li key={`main-${entry.draftId}`}>
+                        <StructuredTripleInline
+                          target={entry.mainTarget}
+                          proposals={proposals}
+                          nestedProposals={nestedEdges}
+                          nestedRefLabels={nestedRefLabels}
+                          derivedTriples={derivedTriples}
+                          nested
+                          wrap
+                        />
+                      </li>
+                    ))}
+                    {supportingCoreTriples.map((t, i) => (
+                      <li key={`core-${i}`}>
                         <TripleInline
                           subject={safeDisplayLabel(t.proposal.subjectMatchedLabel, t.proposal.sText)}
                           predicate={safeDisplayLabel(t.proposal.predicateMatchedLabel, t.proposal.pText)}
@@ -165,18 +211,18 @@ export function ProtocolDetails({
                         />
                       </li>
                     ))}
-                    {nestedEdges.map((edge) => (
+                    {supportingNestedEdges.map((edge) => (
                       <li key={edge.id}>
                         <TripleInline
-                          subject={<StructuredTermInline termRef={edge.subject} proposals={proposals} nestedProposals={nestedEdges} nestedRefLabels={nestedRefLabels} />}
+                          subject={<StructuredTermInline termRef={edge.subject} proposals={proposals} nestedProposals={nestedEdges} nestedRefLabels={nestedRefLabels} derivedTriples={derivedTriples} />}
                           predicate={edge.predicate}
-                          object={<StructuredTermInline termRef={edge.object} proposals={proposals} nestedProposals={nestedEdges} nestedRefLabels={nestedRefLabels} />}
+                          object={<StructuredTermInline termRef={edge.object} proposals={proposals} nestedProposals={nestedEdges} nestedRefLabels={nestedRefLabels} derivedTriples={derivedTriples} />}
                           nested
                           wrap
                         />
                       </li>
                     ))}
-                    {derivedTriples.map((dt) => (
+                    {orphanDerivedTriples.map((dt) => (
                       <li key={dt.stableKey}>
                         <TripleInline
                           subject={dt.subject}
@@ -206,6 +252,7 @@ export function ProtocolDetails({
                               proposals={proposals}
                               nestedProposals={nestedEdges}
                               nestedRefLabels={nestedRefLabels}
+                              derivedTriples={derivedTriples}
                               nested
                             />
                           )}
@@ -225,6 +272,7 @@ export function ProtocolDetails({
                               proposals={proposals}
                               nestedProposals={nestedEdges}
                               nestedRefLabels={nestedRefLabels}
+                              derivedTriples={derivedTriples}
                               nested
                             />
                           )}

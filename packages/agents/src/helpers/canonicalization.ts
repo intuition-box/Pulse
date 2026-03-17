@@ -11,9 +11,43 @@ import {
   TRIPLE_DEDUP_THRESHOLD,
   REPLY_PARENT_MATCH_THRESHOLD,
   RELATIVE_CLAUSE_RE,
+  COMPOUND_CONDITIONAL_KW,
 } from "./rules/extractionRules.js";
-import type { DecomposedClaim, FlatTriple } from "../types.js";
+import type { DecomposedClaim, FlatTriple, ClaimNode, ClaimTreePlan } from "../types.js";
 import type { ClaimPlan, GraphResult } from "./claimPlanner.js";
+
+export function fixCompoundPredicate(core: FlatTriple): FlatTriple {
+  const oLower = core.object.toLowerCase();
+  const pLower = core.predicate.toLowerCase();
+
+  for (const kw of Object.keys(COMPOUND_CONDITIONAL_KW)) {
+    const parts = kw.split(" ");
+
+    // Pattern 1: P ends with first part, O starts with second part
+    // "works only" + "when citizens are educated"
+    if (parts.length === 2
+      && pLower.endsWith(" " + parts[0])
+      && oLower.startsWith(parts[1] + " ")) {
+      return {
+        subject: core.subject,
+        predicate: core.predicate + " " + core.object.slice(0, parts[1].length),
+        object: core.object.slice(parts[1].length).trim(),
+      };
+    }
+
+    // Pattern 2: O starts with full compound keyword
+    // "works" + "only when citizens are educated"
+    if (oLower.startsWith(kw + " ")) {
+      return {
+        subject: core.subject,
+        predicate: core.predicate + " " + core.object.slice(0, kw.length),
+        object: core.object.slice(kw.length).trim(),
+      };
+    }
+  }
+
+  return core;
+}
 
 export function areTriplesDuplicate(a: FlatTriple, b: FlatTriple, threshold = TRIPLE_DEDUP_THRESHOLD): boolean {
   return (
@@ -56,6 +90,9 @@ function trimRelativeClauseTail(claim: DecomposedClaim): DecomposedClaim {
   const text = claim.text.trim();
   const marker = RELATIVE_CLAUSE_RE.exec(text);
   if (!marker || marker.index <= 0) return claim;
+
+  const matched = marker[0];
+  if (matched.length > 1 && matched === matched.toUpperCase()) return claim;
 
   const before = text.slice(0, marker.index).trim().replace(/[,;:]\s*$/, "");
   if (!before) return claim;
@@ -245,4 +282,67 @@ export function enforceRoles(
 ): void {
   splitMultiMainGroups(claims);
   enforceOneMainPerGroup(claims, referenceText);
+}
+
+function treeStructureKey(node: ClaimNode): string {
+  switch (node.kind) {
+    case "proposition": return "P";
+    case "clause": return "C";
+    case "meta": return `meta(${treeStructureKey(node.child)})`;
+    case "conditional": return `cond(${treeStructureKey(node.main)},${treeStructureKey(node.condition)})`;
+    case "causal": return `causal(${treeStructureKey(node.main)},${treeStructureKey(node.reason)})`;
+  }
+}
+
+function collectLeafCores(
+  plan: ClaimTreePlan,
+  graphMap: Map<string, GraphResult | null>,
+): FlatTriple[] {
+  return plan.leaves
+    .map((leaf) => graphMap.get(leaf.leafId)?.core)
+    .filter((c): c is FlatTriple => !!c);
+}
+
+export function deduplicateGraphTreePlans(
+  plans: ClaimTreePlan[],
+  graphMap: Map<string, GraphResult | null>,
+): ClaimTreePlan[] {
+  const result: ClaimTreePlan[] = [];
+  const seen: Array<{ structureKey: string; cores: FlatTriple[]; index: number; hasMeta: boolean }> = [];
+
+  for (const plan of plans) {
+    const structureKey = treeStructureKey(plan.tree);
+    const cores = collectLeafCores(plan, graphMap);
+    const hasMeta = structureKey.startsWith("meta(");
+
+    const existing = seen.find((s) => {
+      if (s.structureKey !== structureKey && !areSameLeafCoresWithDiffStructure(s, { structureKey, cores })) {
+        return false;
+      }
+      if (s.cores.length !== cores.length) return false;
+      return s.cores.every((sc, i) => areTriplesDuplicate(sc, cores[i]));
+    });
+
+    if (!existing) {
+      seen.push({ structureKey, cores, index: result.length, hasMeta });
+      result.push(plan);
+    } else if (hasMeta && !existing.hasMeta) {
+      // Prefer meta-wrapped version
+      result[existing.index] = plan;
+      existing.hasMeta = true;
+      existing.structureKey = structureKey;
+    }
+  }
+
+  return result;
+}
+
+function areSameLeafCoresWithDiffStructure(
+  a: { structureKey: string; cores: FlatTriple[] },
+  b: { structureKey: string; cores: FlatTriple[] },
+): boolean {
+  // Two plans with different structure but identical leaf cores → the more structured one wins
+  // This handles meta(X) vs standard(X) — both have the same single leaf core
+  if (a.cores.length !== b.cores.length) return false;
+  return a.cores.every((ac, i) => areTriplesDuplicate(ac, b.cores[i]));
 }

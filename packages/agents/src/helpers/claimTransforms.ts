@@ -2,6 +2,13 @@ import type { DecomposedClaim } from "../types.js";
 import { ensurePeriod, tokenize } from "./text.js";
 import { parseCausal } from "./parse.js";
 import { trackFallback } from "./fallbackTracker.js";
+
+const USE_CLAIM_TREE = (() => {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
+  return env.EXTRACTION_CLAIM_TREE !== "0";
+})();
+
+const NESTED_STRUCTURAL_KW_RE = /\b(?:if|unless|when|because|since|according\s+to)\b/i;
 import {
   CAUSAL_MARKERS_RE,
   TEMPORAL_SINCE_RE,
@@ -152,6 +159,12 @@ export function tryCausalTruncate(
 
   const afterWords = afterMarker.split(/\s+/).filter(Boolean);
   if (afterWords.length <= SHORT_REASON_MAX_WORDS) return null;
+
+  // In tree mode, if the reason contains nested structural keywords
+  // (if/unless/when/because/according to), let the tree handle it — don't truncate or split.
+  if (USE_CLAIM_TREE && NESTED_STRUCTURAL_KW_RE.test(afterMarker)) {
+    return null;
+  }
 
   const parts = splitReasonParts(afterMarker);
   if (parts) {

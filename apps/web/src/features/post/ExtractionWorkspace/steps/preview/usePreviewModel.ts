@@ -4,13 +4,16 @@ import { normalizeLabelForChain } from "@/lib/format/normalizeLabel";
 import { labels } from "@/lib/vocabulary";
 import {
   validateAtomRelevance,
-  validateTripleRelevance,
+  checkMeaningPreservation,
+  checkChainLabelMeaning,
+  isAllowed,
   getReferenceBodyForProposal,
 } from "@/lib/validation/semanticRelevance";
 
 import {
   assignNestedToDrafts,
   buildPublishPlan,
+  buildNestedEdgeContexts,
   computeEffectiveMainTargets,
   safeDisplayLabel,
   type ApprovedProposalWithRole,
@@ -45,6 +48,7 @@ export type PreviewModelInputs = {
   mainRefByDraft: Map<string, MainRef | null>;
   proposals: ProposalDraft[];
   derivedTriples: DerivedTripleDraft[];
+  nestedRefLabels: Map<string, string>;
   extractionJob: { status: string } | null;
   parentPostId?: string | null;
   parentMainTripleTermId?: string | null;
@@ -95,6 +99,8 @@ export type PreviewModel = {
   directMainProposalIds: Set<string>;
   mainNestedCount: number;
   publishPlan: PublishPlan;
+  orphanedKeys: Set<string>;
+  hasBlockingOrphans: boolean;
 };
 
 export function usePreviewModel(inputs: PreviewModelInputs): PreviewModel {
@@ -117,6 +123,7 @@ export function usePreviewModel(inputs: PreviewModelInputs): PreviewModel {
     mainRefByDraft,
     proposals,
     derivedTriples,
+    nestedRefLabels,
     extractionJob,
     parentPostId,
     parentMainTripleTermId,
@@ -289,10 +296,28 @@ export function usePreviewModel(inputs: PreviewModelInputs): PreviewModel {
     [proposals],
   );
 
-  const nestedEdgesByDraft = useMemo(
+  const { byDraft: nestedEdgesByDraft, orphanedKeys } = useMemo(
     () => assignNestedToDrafts(displayNestedProposals, draftPosts, nonRejectedProposals, derivedTriples),
     [displayNestedProposals, draftPosts, nonRejectedProposals, derivedTriples],
   );
+
+  const hasBlockingOrphans = useMemo(() => {
+    if (orphanedKeys.size === 0) return false;
+    for (const draft of draftPosts) {
+      const ref = mainRefByDraft.get(draft.id);
+      if (ref?.type === "nested" && orphanedKeys.has(ref.nestedStableKey)) return true;
+    }
+    const approvedStableKeys = new Set(
+      proposals.filter((p) => p.status === "approved").map((p) => p.stableKey),
+    );
+    for (const edge of displayNestedProposals) {
+      if (!orphanedKeys.has(edge.stableKey)) continue;
+      for (const ref of [edge.subject, edge.object]) {
+        if (ref.type === "triple" && approvedStableKeys.has(ref.tripleKey)) return true;
+      }
+    }
+    return false;
+  }, [orphanedKeys, draftPosts, mainRefByDraft, displayNestedProposals, proposals]);
 
   const hasIrrelevantContent = useMemo(() => {
     const draftProposalIds = new Set(draftPosts.flatMap((d) => d.proposalIds));
@@ -300,17 +325,31 @@ export function usePreviewModel(inputs: PreviewModelInputs): PreviewModel {
       if (!draftProposalIds.has(ap.id)) continue;
       const body = getReferenceBodyForProposal(ap.id, draftPosts);
       if (!body) return true;
-      const sCheck = validateAtomRelevance(ap.sText, body, "sText", { contextText: parentClaim });
-      const oCheck = validateAtomRelevance(ap.oText, body, "oText", { contextText: parentClaim });
-      const tripleCheck = validateTripleRelevance(
-        { subject: ap.sText, predicate: ap.pText, object: ap.oText },
-        body,
-        { contextText: parentClaim },
-      );
-      if (!sCheck.valid || !oCheck.valid || !tripleCheck.valid) return true;
+      const sCheck = validateAtomRelevance(ap.sText, body, "sText");
+      const oCheck = validateAtomRelevance(ap.oText, body, "oText");
+      const proposal = proposals.find((p) => p.id === ap.id);
+      const draftId = draftPosts.find((d) => d.proposalIds.includes(ap.id))?.id;
+      const draftNested = draftId ? nestedEdgesByDraft.get(draftId) ?? [] : [];
+      const nestedCtx = proposal?.stableKey
+        ? buildNestedEdgeContexts(proposal.stableKey, draftNested, nestedRefLabels)
+        : [];
+      const tripleCheck = checkMeaningPreservation(body, {
+        subject: ap.sText, predicate: ap.pText, object: ap.oText,
+      }, nestedCtx);
+      if (!isAllowed(sCheck) || !isAllowed(oCheck) || !isAllowed(tripleCheck)) return true;
+    }
+    for (const draft of draftPosts) {
+      const ref = mainRefByDraft.get(draft.id);
+      if (ref?.type !== "nested") continue;
+      const chainLabel = nestedRefLabels.get(ref.nestedStableKey);
+      if (!chainLabel) continue;
+      const body = draft.body;
+      if (!body) return true;
+      const labelCheck = checkChainLabelMeaning(body, chainLabel);
+      if (!isAllowed(labelCheck)) return true;
     }
     return false;
-  }, [publishableProposals, draftPosts, parentClaim]);
+  }, [publishableProposals, draftPosts, mainRefByDraft, nestedRefLabels, proposals, nestedEdgesByDraft]);
 
   const checks: Check[] = [
     { ok: walletConnected, label: labels.connectWalletToPublish, okLabel: "Wallet connected" },
@@ -319,6 +358,7 @@ export function usePreviewModel(inputs: PreviewModelInputs): PreviewModel {
     { ok: publishPlan.errors.length === 0, label: "Main/metadata references are unresolved", okLabel: "Main/metadata references resolved" },
     { ok: invalidProposals.length === 0, label: "Some claims have empty terms — edit them before publishing", okLabel: "All claims valid" },
     { ok: !hasIrrelevantContent, label: "Some terms don't match the post text", okLabel: "All terms match" },
+    { ok: !hasBlockingOrphans, label: "Some nested edges couldn't be assigned to any post", okLabel: "All nested edges assigned" },
   ];
   const allChecksOk = checks.every((c) => c.ok);
 
@@ -372,5 +412,7 @@ export function usePreviewModel(inputs: PreviewModelInputs): PreviewModel {
     directMainProposalIds,
     mainNestedCount: mainNestedIds.size,
     publishPlan,
+    orphanedKeys,
+    hasBlockingOrphans,
   };
 }

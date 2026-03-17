@@ -2,7 +2,7 @@
 export type AtomCandidate = {
   termId: string;
   label: string;
-  source: "global" | "semantic" | "graphql";
+  source: "global" | "semantic" | "graphql" | "exact_onchain";
   holders: number | null;
   shares: number | null;
   marketCap: number | null;
@@ -11,6 +11,7 @@ export type AtomCandidate = {
 
 export type AtomMatchDecisionPath =
   | "cache_hit"
+  | "strict_equivalent"
   | "anti_dup"
   | "high_score"
   | "llm_review"

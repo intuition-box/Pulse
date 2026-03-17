@@ -81,13 +81,18 @@ export type NestedTermRef =
 
 export type NestedProposalStatus = "approved" | "rejected";
 
-export type NestedProposalDraft = {
-  id: string;
+export type NestedEdgeLike = {
+  stableKey: string;
   edgeKind: string;
   predicate: string;
+  subject: { type: string; tripleKey?: string; label?: string };
+  object: { type: string; tripleKey?: string; label?: string };
+};
+
+export type NestedProposalDraft = NestedEdgeLike & {
+  id: string;
   subject: NestedTermRef;
   object: NestedTermRef;
-  stableKey: string;
   status?: NestedProposalStatus;
 };
 
@@ -116,7 +121,6 @@ export type ProposalActions = {
 
 export type DraftActions = {
   onSplit: () => void;
-  onMerge: () => void;
   onStanceChange: (draftId: string, stance: Stance) => void;
   onBodyChange: (draftId: string, body: string) => void;
   onBodyReset: (draftId: string) => void;
@@ -152,8 +156,8 @@ export type DraftPublishPayload = {
   draftId: string;
   body: string;
   stance: Stance | null;
-  triples: { proposalId: string; tripleTermId: string; isExisting: boolean; role: TripleRole; sLabel?: string; pLabel?: string; oLabel?: string }[];
-  nestedTriples: { nestedProposalId: string; tripleTermId: string; isExisting: boolean; role?: TripleRole }[];
+  triples: { proposalId: string; tripleTermId: string; isExisting: boolean; role: TripleRole; stableKey?: string; sLabel?: string; pLabel?: string; oLabel?: string }[];
+  nestedTriples: { nestedProposalId: string; tripleTermId: string; isExisting: boolean; role?: TripleRole; chainLabel?: string; edgeKind?: string; ownerStableKey?: string }[];
 };
 
 export type BatchOnchainResult = {

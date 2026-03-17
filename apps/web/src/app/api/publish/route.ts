@@ -6,6 +6,7 @@ import { prisma } from "@/server/db/prisma";
 import { requireSiweAuth } from "@/server/auth/siwe";
 import { getErrorMessage } from "@/lib/getErrorMessage";
 import { validateSemanticGuard } from "@/app/api/chat/refine/validate";
+import type { NestedEdgeContext } from "@/lib/validation/semanticRelevance";
 import { isValidDraftPost, type DraftPostPayload } from "./validation";
 import { isStanceId } from "@/features/post/ExtractionWorkspace/extraction/idPrefixes";
 
@@ -58,8 +59,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "idempotencyKey is required." }, { status: 400 });
     }
 
-    // ─── Fetch submission ─────────────────────────────────────────────────
-
     const submission = await prisma.submission.findUnique({
       where: { id: submissionId },
     });
@@ -71,9 +70,6 @@ export async function POST(request: Request) {
     if (submission.userId !== auth.userId) {
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     }
-
-    // ─── Idempotency checks (BEFORE payload validation) ───────────────────
-    // A retry with a malformed payload should still return the published result.
 
     if (submission.status === "PUBLISHED") {
       const existingPosts = await prisma.post.findMany({
@@ -133,8 +129,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // ─── Validate posts[] (AFTER idempotency + submission loaded) ───
-
     if (!Array.isArray(rawPosts) || rawPosts.length === 0) {
       return NextResponse.json({ error: "posts array must not be empty." }, { status: 400 });
     }
@@ -142,8 +136,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid draft post format in payload." }, { status: 400 });
     }
     const validPosts = rawPosts as DraftPostPayload[];
-
-    // ─── Per-post validation: exactly 1 MAIN across triples + nestedTriples ──
 
     for (const post of validPosts) {
       const mainCount =
@@ -157,18 +149,31 @@ export async function POST(request: Request) {
       }
     }
 
-    // ─── Semantic guard (blocking) ─────────────────────────────────────────
-
     for (const draftPost of validPosts) {
       const referenceText = draftPost.body || submission.inputText;
+
       for (const triple of draftPost.triples) {
-        if (triple.isExisting) continue;
-        if (!triple.sLabel || !triple.pLabel || !triple.oLabel) continue;
+        if (!triple.sLabel || !triple.pLabel || !triple.oLabel) {
+          if (triple.role === "MAIN") {
+            return NextResponse.json(
+              { error: `MAIN claim in draft "${draftPost.draftId}" is missing labels — cannot validate.` },
+              { status: 400 },
+            );
+          }
+          continue;
+        }
+        if (triple.isExisting && triple.role !== "MAIN") continue;
+        const nestedEdges: NestedEdgeContext[] = (draftPost.nestedTriples ?? [])
+          .filter((n) => n.ownerStableKey === triple.stableKey && n.chainLabel)
+          .map((n) => ({
+            kind: (n.edgeKind === "conditional" || n.edgeKind === "meta" || n.edgeKind === "relation" || n.edgeKind === "modifier" ? n.edgeKind : "modifier") as NestedEdgeContext["kind"],
+            text: n.chainLabel!,
+          }));
         const guardResult = validateSemanticGuard(referenceText, {
           subject: triple.sLabel,
           predicate: triple.pLabel,
           object: triple.oLabel,
-        });
+        }, nestedEdges.length > 0 ? nestedEdges : undefined);
         if (!guardResult.allowed) {
           console.warn(JSON.stringify({
             event: "publish_guard_blocked",
@@ -184,9 +189,32 @@ export async function POST(request: Request) {
           );
         }
       }
-    }
 
-    // ─── DB Transaction: create N Posts ────────────────────────────────────
+      for (const nested of draftPost.nestedTriples ?? []) {
+        if (nested.role === "MAIN" && !nested.chainLabel) {
+          return NextResponse.json(
+            { error: `MAIN nested claim in draft "${draftPost.draftId}" is missing chainLabel — cannot validate.` },
+            { status: 400 },
+          );
+        }
+        if (nested.role !== "MAIN" || !nested.chainLabel) continue;
+        const guardResult = validateSemanticGuard(referenceText, { chainLabel: nested.chainLabel });
+        if (!guardResult.allowed) {
+          console.warn(JSON.stringify({
+            event: "publish_guard_blocked",
+            submissionId,
+            draftId: draftPost.draftId,
+            nestedProposalId: nested.nestedProposalId,
+            reason: guardResult.reason,
+            timestamp: new Date().toISOString(),
+          }));
+          return NextResponse.json(
+            { error: guardResult.reason ?? "A claim does not match the post text." },
+            { status: 400 },
+          );
+        }
+      }
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       const createdPosts: CreatedPostRecord[] = [];
@@ -209,8 +237,6 @@ export async function POST(request: Request) {
 
         for (const triple of draftPost.triples) {
           if (seenTermIds.has(triple.tripleTermId)) continue;
-          // Skip auto-generated stance triples — stance is stored in Post.stance,
-          // triple is already published on-chain via stanceTxHash
           if (isStanceId(triple.proposalId)) continue;
           seenTermIds.add(triple.tripleTermId);
           const link = await tx.postTripleLink.create({
@@ -243,7 +269,6 @@ export async function POST(request: Request) {
       return createdPosts;
     });
 
-    // ─── Build txPlan (global, deduplicated) ──────────────────────────────
 
     const txPlan: Array<{
       id: string;

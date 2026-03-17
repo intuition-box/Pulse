@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useCallback, useRef, useMemo } from "react";
-import type { DraftPost, ProposalActions, PropagationResult } from "../extraction";
+import type { DerivedTripleDraft, DraftPost, ProposalActions, PropagationResult, NestedProposalDraft, ProposalDraft } from "../extraction";
+import { buildNestedEdgeContexts } from "../extraction";
 import type { AtomResult, TripleResult, SearchResultsPayload, QuickAction } from "@/lib/intuition/types";
-import { validateAtomRelevance, validateTripleRelevance, getReferenceBodyForProposal } from "@/lib/validation/semanticRelevance";
+import { validateAtomRelevance, checkMeaningPreservation, isAllowed, getReferenceBodyForProposal, type NestedEdgeContext } from "@/lib/validation/semanticRelevance";
 export type { AtomResult, TripleResult, SearchResultsPayload, QuickAction };
 
 export type RefineQuickAction = QuickAction & { action?: string };
@@ -28,13 +29,7 @@ export type ChatMessage = {
   details?: true;
 };
 
-type Proposal = {
-  id: string;
-  sText: string;
-  pText: string;
-  oText: string;
-  role: "MAIN" | "SUPPORTING";
-
+type Proposal = Pick<ProposalDraft, "id" | "sText" | "pText" | "oText" | "role" | "stableKey"> & {
   postNumber?: number;
 };
 
@@ -50,6 +45,9 @@ export type UseRefineChatParams = {
   onSplit?: () => void;
   onUpdateNestedPredicate?: (nestedId: string, label: string) => void;
   onUpdateNestedAtom?: (nestedId: string, slot: "subject" | "object", label: string) => void;
+  nestedEdgesByDraft?: Map<string, NestedProposalDraft[]>;
+  nestedRefLabels?: Map<string, string>;
+  derivedTriples?: DerivedTripleDraft[];
 };
 
 type SSEEvent =
@@ -110,6 +108,8 @@ function applyToolCall(
   onSplit?: () => void,
   onUpdateNestedPredicate?: (nestedId: string, label: string) => void,
   onUpdateNestedAtom?: (nestedId: string, slot: "subject" | "object", label: string) => void,
+  nestedEdgesByDraft?: Map<string, NestedProposalDraft[]>,
+  nestedRefLabels?: Map<string, string>,
 ): ApplyResult {
   if (name === "update_triple") {
     const proposalId = args.proposalId as string;
@@ -121,6 +121,56 @@ function applyToolCall(
 
     if (proposalId.startsWith("nested:")) {
       const nestedId = proposalId.slice(7);
+
+      // Find the nested edge and its draft for semantic validation
+      if (nestedEdgesByDraft) {
+        let edgeDraftBody: string | undefined;
+        for (const [draftId, edges] of nestedEdgesByDraft) {
+          if (edges.some((e) => e.id === nestedId)) {
+            const draft = draftPosts.find((d) => d.id === draftId);
+            edgeDraftBody = draft?.body;
+            break;
+          }
+        }
+        if (edgeDraftBody) {
+          // Reconstruct the nested edge's label with the proposed change
+          let proposedTriple:
+            | { subject: string; predicate: string; object: string }
+            | undefined;
+          let foundEdge: NestedProposalDraft | undefined;
+          for (const [, edges] of nestedEdgesByDraft) {
+            const edge = edges.find((e) => e.id === nestedId);
+            if (edge) {
+              foundEdge = edge;
+              const resolveRef = (ref: typeof edge.subject): string => {
+                if (ref.type === "atom") return ref.label;
+                return nestedRefLabels?.get(ref.tripleKey) ?? ref.label ?? "";
+              };
+              const s = field === "subject" ? value : resolveRef(edge.subject);
+              const p = field === "predicate" ? value : edge.predicate;
+              const o = field === "object" ? value : resolveRef(edge.object);
+              proposedTriple = { subject: s, predicate: p, object: o };
+              break;
+            }
+          }
+          if (proposedTriple) {
+            // Build nested context for this edge's own children
+            let childNestedCtx: NestedEdgeContext[] | undefined;
+            if (foundEdge && nestedRefLabels) {
+              const allNested: NestedProposalDraft[] = [];
+              for (const draftEdges of nestedEdgesByDraft.values()) allNested.push(...draftEdges);
+              childNestedCtx = buildNestedEdgeContexts(foundEdge.stableKey, allNested, nestedRefLabels);
+            }
+            const check = checkMeaningPreservation(
+              edgeDraftBody,
+              proposedTriple,
+              childNestedCtx,
+            );
+            if (!isAllowed(check)) return { blocked: check.reason ?? "Updated nested claim is not related to the post text." };
+          }
+        }
+      }
+
       if (field === "predicate") {
         if (!onUpdateNestedPredicate) return { blocked: "Nested predicate editing not available." };
         onUpdateNestedPredicate(nestedId, value);
@@ -142,8 +192,13 @@ function applyToolCall(
         predicate: field === "predicate" ? value : target.pText,
         object: field === "object" ? value : target.oText,
       };
-      const check = validateTripleRelevance(updated, body, { contextText: parentClaim });
-      if (!check.valid) return { blocked: check.reason ?? "Updated claim is not related to the post text." };
+      const coreDraftId = draftPosts.find((d) => d.proposalIds.includes(proposalId))?.id;
+      const coreDraftNested = coreDraftId && nestedEdgesByDraft ? nestedEdgesByDraft.get(coreDraftId) ?? [] : [];
+      const nestedCtx = target.stableKey
+        ? buildNestedEdgeContexts(target.stableKey, coreDraftNested, nestedRefLabels ?? new Map())
+        : [];
+      const check = checkMeaningPreservation(body, updated, nestedCtx);
+      if (!isAllowed(check)) return { blocked: check.reason ?? "Updated claim is not related to the post text." };
     }
     actions.onChange(proposalId, FIELD_MAP[field], value);
   } else if (name === "link_atom") {
@@ -160,8 +215,8 @@ function applyToolCall(
 
     const body = getReferenceBodyForProposal(proposalId, draftPosts);
     if (body) {
-      const check = validateAtomRelevance(label, body, FIELD_MAP[field], { contextText: parentClaim });
-      if (!check.valid) return { blocked: check.reason ?? "Atom is not related to the post text." };
+      const check = validateAtomRelevance(label, body, FIELD_MAP[field]);
+      if (!isAllowed(check)) return { blocked: check.reason ?? "Atom is not related to the post text." };
     }
     actions.onLock(proposalId, FIELD_MAP[field], atomId, label);
 
@@ -185,12 +240,8 @@ function applyToolCall(
     if (!targetDraft) return { blocked: `Post ${postNum} not found.` };
 
     if (targetDraft.body) {
-      const check = validateTripleRelevance(
-        { subject: s, predicate: p, object: o },
-        targetDraft.body,
-        { contextText: parentClaim },
-      );
-      if (!check.valid) return { blocked: check.reason ?? "New claim is not related to the post text." };
+      const check = checkMeaningPreservation(targetDraft.body, { subject: s, predicate: p, object: o });
+      if (!isAllowed(check)) return { blocked: check.reason ?? "New claim is not related to the post text." };
     }
     actions.onAddTriple(s, p, o, targetDraft.id);
   } else if (name === "update_post_body") {
@@ -241,6 +292,9 @@ export function useRefineChat({
   onSplit,
   onUpdateNestedPredicate,
   onUpdateNestedAtom,
+  nestedEdgesByDraft,
+  nestedRefLabels,
+  derivedTriples,
 }: UseRefineChatParams) {
   const initialMsg = useMemo<ChatMessage[]>(() => [
     {
@@ -298,6 +352,7 @@ export function useRefineChat({
           object: p.oText,
           role: p.role === "MAIN" ? "primary" as const : "supporting" as const,
           ...(p.postNumber != null ? { postNumber: p.postNumber } : {}),
+          ...(p.stableKey ? { stableKey: p.stableKey } : {}),
         }));
 
         const apiMessages = [...messages, userMsg]
@@ -306,6 +361,30 @@ export function useRefineChat({
             role: m.role as "user" | "assistant",
             content: m.content,
           }));
+
+        const rawNestedEdges: Array<{
+          stableKey: string;
+          edgeKind: string;
+          predicate: string;
+          subject: { type: string; tripleKey?: string; label?: string };
+          object: { type: string; tripleKey?: string; label?: string };
+        }> = [];
+        if (nestedEdgesByDraft) {
+          const seen = new Set<string>();
+          for (const edges of nestedEdgesByDraft.values()) {
+            for (const e of edges) {
+              if (seen.has(e.stableKey)) continue;
+              seen.add(e.stableKey);
+              rawNestedEdges.push({
+                stableKey: e.stableKey,
+                edgeKind: e.edgeKind,
+                predicate: e.predicate,
+                subject: { type: e.subject.type, ...(e.subject.type === "triple" ? { tripleKey: e.subject.tripleKey } : {}), label: e.subject.label },
+                object: { type: e.object.type, ...(e.object.type === "triple" ? { tripleKey: e.object.tripleKey } : {}), label: e.object.label },
+              });
+            }
+          }
+        }
 
         const res = await fetch("/api/chat/refine", {
           method: "POST",
@@ -318,6 +397,8 @@ export function useRefineChat({
             parentClaim,
             reasoningSummary,
             draftPosts: draftPosts.map((d) => ({ body: d.body })),
+            ...(rawNestedEdges.length > 0 ? { nestedEdges: rawNestedEdges } : {}),
+            ...(derivedTriples && derivedTriples.length > 0 ? { derivedTriples: derivedTriples.map((dt) => ({ stableKey: dt.stableKey, subject: dt.subject, predicate: dt.predicate, object: dt.object })) } : {}),
           }),
           signal: controller.signal,
         });
@@ -389,6 +470,8 @@ export function useRefineChat({
                 onSplit,
                 onUpdateNestedPredicate,
                 onUpdateNestedAtom,
+                nestedEdgesByDraft,
+                nestedRefLabels,
               );
               if (!blocked) {
                 appliedTools.push({ name: event.payload.name, args: event.payload.args });

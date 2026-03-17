@@ -1,5 +1,8 @@
 import type { AtomCandidate } from "@db/agents/search/types";
 import type { TripleResult, AtomSuggestion, TripleSuggestion } from "./types";
+import type { PublicClient, Address } from "viem";
+import { stringToHex } from "viem";
+import { MultiVaultAbi } from "@0xintuition/protocol";
 import { parseVaultMetrics } from "./metrics";
 import {
   type GraphqlAtom,
@@ -60,6 +63,116 @@ export function graphqlTripleToSuggestion(triple: GraphqlTriple): TripleSuggesti
   };
 }
 
+/* ── Exact on-chain atom lookup ── */
+
+export type ExactLookupConfig = {
+  publicClient: PublicClient;
+  multivaultAddress: Address;
+  normalizeLabel: (label: string) => string;
+};
+
+export async function findExactAtomCandidates(
+  label: string,
+  config: ExactLookupConfig,
+): Promise<AtomCandidate[]> {
+  const { publicClient, multivaultAddress, normalizeLabel } = config;
+  const normalized = normalizeLabel(label);
+  const raw = label.trim();
+
+  const forms = [normalized];
+  if (raw !== normalized) forms.push(raw);
+
+  const candidates: AtomCandidate[] = [];
+  const seenIds = new Set<string>();
+
+  for (const form of forms) {
+    try {
+      const hex = stringToHex(form);
+      const atomId = await publicClient.readContract({
+        address: multivaultAddress,
+        abi: MultiVaultAbi,
+        functionName: "calculateAtomId",
+        args: [hex],
+      });
+      const exists = await publicClient.readContract({
+        address: multivaultAddress,
+        abi: MultiVaultAbi,
+        functionName: "isTermCreated",
+        args: [atomId],
+      });
+      if (exists) {
+        const termId = String(atomId);
+        if (!seenIds.has(termId)) {
+          seenIds.add(termId);
+          candidates.push({
+            termId,
+            label: form,
+            source: "exact_onchain",
+            holders: null,
+            shares: null,
+            marketCap: null,
+            sharePrice: null,
+          });
+        }
+      }
+    } catch {
+      // RPC failure — skip this form silently
+    }
+  }
+
+  return candidates;
+}
+
+export async function hydrateExactCandidates(
+  candidates: AtomCandidate[],
+  graphqlCandidates: AtomCandidate[],
+): Promise<AtomCandidate[]> {
+  // Build lookup from GraphQL candidates by termId
+  const graphqlById = new Map<string, AtomCandidate>();
+  for (const c of graphqlCandidates) {
+    graphqlById.set(c.termId, c);
+  }
+
+  const needsHydration: AtomCandidate[] = [];
+  for (const c of candidates) {
+    const gql = graphqlById.get(c.termId);
+    if (gql) {
+      // Merge stats from GraphQL
+      c.holders = gql.holders;
+      c.shares = gql.shares;
+      c.marketCap = gql.marketCap;
+      c.sharePrice = gql.sharePrice;
+    } else {
+      needsHydration.push(c);
+    }
+  }
+
+  // Batch hydrate remaining candidates via GraphQL
+  if (needsHydration.length > 0) {
+    try {
+      const atoms = await fetchAtomsByWhere(
+        { term_id: { _in: needsHydration.map((c) => c.termId) } },
+        needsHydration.length,
+      );
+      for (const atom of atoms) {
+        const c = needsHydration.find((n) => n.termId === atom.term_id);
+        if (c) {
+          const m = parseVaultMetrics(atom.term?.vaults?.[0]);
+          c.holders = m.holders;
+          c.shares = m.shares;
+          c.marketCap = m.marketCap;
+          c.sharePrice = m.sharePrice;
+          if (atom.label) c.label = atom.label.trim();
+        }
+      }
+    } catch {
+      // GraphQL hydration failed — stats stay null, not blocking
+    }
+  }
+
+  return candidates;
+}
+
 async function fetchExactAtoms(query: string): Promise<AtomCandidate[]> {
   const atoms = await fetchAtomsByWhere({ label: { _ilike: query } }, 5);
   return atoms.map((a) => atomToCandidate(a, "graphql")).filter((c): c is AtomCandidate => c !== null);
@@ -82,17 +195,68 @@ async function fetchSemanticAtomsAsCandidate(query: string, limit: number): Prom
   }
 }
 
-export async function searchAtomsServer(query: string, limit: number): Promise<AtomCandidate[]> {
-  const [exact, fuzzy, semantic] = await Promise.all([
+export async function searchAtomsServer(
+  query: string,
+  limit: number,
+  exactLookupConfig?: ExactLookupConfig,
+): Promise<AtomCandidate[]> {
+  const sources: Promise<AtomCandidate[]>[] = [
     fetchExactAtoms(query),
     fetchFuzzyAtoms(query, limit),
     fetchSemanticAtomsAsCandidate(query, limit),
-  ]);
+  ];
 
+  // If on-chain lookup config is provided, run exact on-chain check in parallel
+  if (exactLookupConfig) {
+    sources.push(
+      findExactAtomCandidates(query, exactLookupConfig).catch(() => []),
+    );
+  }
+
+  const results = await Promise.all(sources);
+
+  // Exact on-chain candidates come first (higher priority in dedup)
+  // But they lack stats — merge holders/marketCap from GraphQL when available
   const byId = new Map<string, AtomCandidate>();
-  for (const c of [...exact, ...fuzzy, ...semantic]) {
-    if (!byId.has(c.termId)) {
-      byId.set(c.termId, c);
+  // Reverse so exact_onchain (last in array) wins dedup over graphql
+  for (const batch of [...results].reverse()) {
+    for (const c of batch) {
+      const existing = byId.get(c.termId);
+      if (!existing) {
+        byId.set(c.termId, c);
+      } else if (existing.source === "exact_onchain" && c.source !== "exact_onchain") {
+        // Hydrate exact_onchain candidate with stats from GraphQL/semantic
+        existing.holders ??= c.holders;
+        existing.shares ??= c.shares;
+        existing.marketCap ??= c.marketCap;
+        existing.sharePrice ??= c.sharePrice;
+      }
+    }
+  }
+
+  // Batch-hydrate exact_onchain candidates that still lack stats
+  const unhydrated = Array.from(byId.values()).filter(
+    (c) => c.source === "exact_onchain" && c.holders == null,
+  );
+  if (unhydrated.length > 0) {
+    try {
+      const atoms = await fetchAtomsByWhere(
+        { term_id: { _in: unhydrated.map((c) => c.termId) } },
+        unhydrated.length,
+      );
+      for (const atom of atoms) {
+        const c = unhydrated.find((u) => u.termId === atom.term_id);
+        if (c) {
+          const m = parseVaultMetrics(atom.term?.vaults?.[0]);
+          c.holders ??= m.holders;
+          c.shares ??= m.shares;
+          c.marketCap ??= m.marketCap;
+          c.sharePrice ??= m.sharePrice;
+          if (atom.label) c.label = atom.label.trim();
+        }
+      }
+    } catch {
+      // GraphQL hydration failed — stats stay null, not blocking
     }
   }
 

@@ -2,7 +2,8 @@ import type { DraftPost, ProposalDraft, NestedProposalDraft } from "./types";
 
 export type MainRef =
   | { type: "proposal"; id: string }
-  | { type: "nested"; nestedId: string; nestedStableKey: string };
+  | { type: "nested"; nestedId: string; nestedStableKey: string }
+  | { type: "error"; reason: string };
 
 export function computeMainRef(
   mainProposalId: string | null,
@@ -19,9 +20,7 @@ export function computeMainRef(
     if (nested) {
       return { type: "nested", nestedId: nested.id, nestedStableKey: nested.stableKey };
     }
-    console.warn(
-      `[mainRef] outermost nested ${mainP.outermostMainKey} not found or rejected, falling back to core proposal ${mainProposalId}`,
-    );
+    return { type: "error", reason: "nested_rejected" };
   }
   return { type: "proposal", id: mainP.id };
 }

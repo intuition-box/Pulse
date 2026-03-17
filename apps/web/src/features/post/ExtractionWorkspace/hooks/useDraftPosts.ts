@@ -6,14 +6,12 @@ import {
   createInitialDraft,
   normalizeMain,
   splitIntoDrafts,
-  mergeDrafts,
   makeDraftId,
   type DraftPost,
   type ProposalDraft,
   type Stance,
 } from "../extraction";
 
-// ─── Params & Return types ────────────────────────────────────────────────
 type UseDraftPostsReturn = {
   draftPosts: DraftPost[];
   setDraftPosts: React.Dispatch<React.SetStateAction<DraftPost[]>>;
@@ -21,14 +19,12 @@ type UseDraftPostsReturn = {
   resetDrafts: () => void;
   allDraftsHaveMain: boolean;
   splitDrafts: (userStance: Stance | null) => void;
-  mergeToDraft: (userStance: Stance | null, inputText?: string) => void;
   updateDraftStance: (draftId: string, stance: Stance) => void;
   updateDraftBody: (draftId: string, body: string) => void;
   resetDraftBody: (draftId: string) => void;
   removeDraft: (draftId: string) => void;
 };
 
-// ─── Hook ─────────────────────────────────────────────────────────────────
 export function useDraftPosts(proposals: ProposalDraft[]): UseDraftPostsReturn {
   const [draftPosts, setDraftPosts] = useState<DraftPost[]>([]);
 
@@ -40,7 +36,6 @@ export function useDraftPosts(proposals: ProposalDraft[]): UseDraftPostsReturn {
     setDraftPosts([]);
   }
 
-  // Derived: every non-empty draft has an approved main
   const allDraftsHaveMain = draftPosts.every((draft) => {
     const active = proposals.filter(
       (p) => draft.proposalIds.includes(p.id) && p.status !== "rejected",
@@ -52,9 +47,6 @@ export function useDraftPosts(proposals: ProposalDraft[]): UseDraftPostsReturn {
     );
   });
 
-  // Invariant I2: a proposalId belongs to at most 1 draft
-  // In Phase 1, only 1 draft exists so structurally enforced.
-  // Debug assertion for future multi-draft phases.
   if (process.env.NODE_ENV !== "production") {
     const allIds = draftPosts.flatMap((d) => d.proposalIds);
     const unique = new Set(allIds);
@@ -65,10 +57,6 @@ export function useDraftPosts(proposals: ProposalDraft[]): UseDraftPostsReturn {
 
   function splitDraftsHandler(userStance: Stance | null) {
     setDraftPosts((prev) => splitIntoDrafts(prev, proposals, userStance));
-  }
-
-  function mergeToDraftHandler(userStance: Stance | null, inputText?: string) {
-    setDraftPosts((prev) => [mergeDrafts(prev, userStance, inputText, proposals)]);
   }
 
   function updateDraftStance(draftId: string, stance: Stance) {
@@ -92,9 +80,6 @@ export function useDraftPosts(proposals: ProposalDraft[]): UseDraftPostsReturn {
     });
   }
 
-  // Auto-sync body with main triple text (split mode only)
-  // When S/P/O changes, update bodyDefault and body (if not manually edited)
-  // Uses "adjust state during rendering" pattern (React docs recommended)
   const [prevProposals, setPrevProposals] = useState(proposals);
   if (prevProposals !== proposals) {
     setPrevProposals(proposals);
@@ -117,7 +102,7 @@ export function useDraftPosts(proposals: ProposalDraft[]): UseDraftPostsReturn {
 
   return {
     draftPosts, setDraftPosts, initializeDrafts, resetDrafts, allDraftsHaveMain,
-    splitDrafts: splitDraftsHandler, mergeToDraft: mergeToDraftHandler,
+    splitDrafts: splitDraftsHandler,
     updateDraftStance, updateDraftBody, resetDraftBody, removeDraft,
   };
 }

@@ -91,8 +91,9 @@ DEDUPLICATION: Do NOT output two claims that express the same idea in different 
   "Nuclear reduces CO2" and "Nuclear lowers emissions" = same idea → output only one.
   Pick the more precise or specific version.
 
-ROLE: Always set role to "MAIN".
-GROUP: Each claim gets its own group (0, 1, 2, ...). One claim = one group = one post.
+ROLE: Always set role to "MAIN". Each publishable thesis is its own MAIN.
+SUPPORTING claims (structural dependencies like conditions, reasons, attributions) are handled automatically by the pipeline — you should NOT produce them.
+GROUP: Each claim gets its own group (0, 1, 2, ...). One claim = one group = one post. An independent debatable idea is ALWAYS its own MAIN in its own group.
 
 EXAMPLES:
 
@@ -159,8 +160,7 @@ Sentence: "Social media amplifies misinformation and governments should regulate
 (Different subjects AND different verbs → always split, even if same broad topic)
 
 FAITHFULNESS:
-- Preserve meaning exactly. Keep numbers/units/dates/negations/modals exactly.
-- Keep conditional keywords (if/unless/when) and contrast markers (but/because) exactly.
+- Preserve meaning exactly. Keep numbers, units, dates, negations, modals, conditionals (if/unless/when), and contrast markers (but/because) exactly.
 
 ALLOWED REWORDING (only for standalone clarity):
 - Remove leading hedges: "I think", "In my opinion", etc.
@@ -204,13 +204,7 @@ If the sentence has a reporting frame (said/found/argued/etc. that ...):
 - Do NOT output the bare proposition separately — the pipeline extracts it automatically.
 
 CONDITIONALS (if/when/unless/only when/only if/as long as/provided that):
-Keep the FULL conditional sentence as ONE MAIN claim. Do NOT strip the conditional clause — the downstream pipeline detects and separates the condition automatically.
-  "If backward time travel were truly possible, why has no traveler appeared?"
-  => { "text": "If backward time travel were possible, no verifiable traveler from the future has ever appeared.", "role": "MAIN", "group": 0, "candidateKind": "conditional", "confidence": 0.95 }
-  "If you invest in renewables, energy costs will drop."
-  => { "text": "If you invest in renewables, energy costs will drop.", "role": "MAIN", "group": 0, "candidateKind": "conditional", "confidence": 0.95 }
-  "Democracy works only when citizens are educated."
-  => { "text": "Democracy works only when citizens are educated.", "role": "MAIN", "group": 0, "candidateKind": "conditional", "confidence": 0.95 }
+Keep the FULL conditional sentence as ONE MAIN claim. The downstream pipeline separates condition from conclusion automatically.
 NEVER split "X only when/only if Y" into two claims. Do NOT output the condition as a separate claim. Do NOT strip the condition from the text.
 
 Prefer 1-3 claims. Max 5. Deduplicate.

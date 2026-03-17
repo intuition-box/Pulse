@@ -1,14 +1,31 @@
 import { NextResponse } from "next/server";
 import { runExtraction, type RejectionCode } from "@db/agents";
+import { createPublicClient, http, type Address } from "viem";
+import { getMultiVaultAddressFromChainId } from "@0xintuition/sdk";
 
 import { prisma } from "@/server/db/prisma";
 import { normalizeLabelForChain } from "@/lib/format/normalizeLabel";
 import { makeLabelKey } from "@/lib/format/makeLabelKey";
+import { normalizeAtomLabel } from "@/features/post/ExtractionWorkspace/publish/config";
 import { validateSubmissionRequest } from "@/server/api/validateSubmission";
-import { searchAtomsServer } from "@/lib/intuition/search";
+import { searchAtomsServer, type ExactLookupConfig } from "@/lib/intuition/search";
+import { intuitionTestnet } from "@/lib/chain";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/* ── Exact on-chain atom lookup config (read-only, no wallet needed) ── */
+
+const extractPublicClient = createPublicClient({
+  chain: intuitionTestnet,
+  transport: http(),
+});
+
+const exactLookupConfig: ExactLookupConfig = {
+  publicClient: extractPublicClient,
+  multivaultAddress: getMultiVaultAddressFromChainId(intuitionTestnet.id) as Address,
+  normalizeLabel: normalizeAtomLabel,
+};
 
 type AgentAtomMeta = {
   rationale?: string | null;
@@ -283,7 +300,7 @@ export async function POST(request: Request) {
       themeTitle: themeName,
       parentClaimText,
       userStance: normalizedStance,
-      searchFn: searchAtomsServer,
+      searchFn: (query, limit) => searchAtomsServer(query, limit, exactLookupConfig),
     });
     const { seeds: candidates, droppedCounts } = collectCandidates(extraction);
     const nestedSeeds = collectNestedProposals(extraction.nested ?? []);

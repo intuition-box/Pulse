@@ -116,13 +116,27 @@ export async function resolveTriples(
     }
   }
 
+  // Dedup new entries by atom key — create each unique triple only once
+  const atomKeyForEntry = (e: TripleEntry) =>
+    `${e.subjectAtomId}-${e.predicateAtomId}-${e.objectAtomId}`;
+  const uniqueNewEntries: TripleEntry[] = [];
+  const duplicatesByKey = new Map<string, TripleEntry[]>();
+  for (const entry of newTripleEntries) {
+    const key = atomKeyForEntry(entry);
+    if (!duplicatesByKey.has(key)) {
+      duplicatesByKey.set(key, []);
+      uniqueNewEntries.push(entry);
+    }
+    duplicatesByKey.get(key)!.push(entry);
+  }
+
   let tripleTxHash: string | null = null;
 
-  if (newTripleEntries.length > 0) {
+  if (uniqueNewEntries.length > 0) {
     try {
-      const subjects = newTripleEntries.map((t) => asHexId(t.subjectAtomId)!);
-      const predicates = newTripleEntries.map((t) => asHexId(t.predicateAtomId)!);
-      const objects = newTripleEntries.map((t) => asHexId(t.objectAtomId)!);
+      const subjects = uniqueNewEntries.map((t) => asHexId(t.subjectAtomId)!);
+      const predicates = uniqueNewEntries.map((t) => asHexId(t.predicateAtomId)!);
+      const objects = uniqueNewEntries.map((t) => asHexId(t.objectAtomId)!);
 
       if (subjects.some((s) => !s) || predicates.some((p) => !p) || objects.some((o) => !o)) {
         throw new PublishPipelineError("triple_creation_failed", labels.errorTripleCreation);
@@ -131,7 +145,7 @@ export async function resolveTriples(
       const mvConfig = await multiVaultMultiCallIntuitionConfigs(sdkReadConfig(ctx.writeConfig));
       const tripleCostOnly = BigInt(mvConfig.triple_cost);
       const minDep = BigInt(mvConfig.min_deposit);
-      const deposits = newTripleEntries.map((e) =>
+      const deposits = uniqueNewEntries.map((e) =>
         directMainProposalIds?.has(e.proposalId) ? tripleCostOnly + minDep : tripleCostOnly,
       );
       const totalValue = deposits.reduce((a, b) => a + b, 0n);
@@ -142,10 +156,13 @@ export async function resolveTriples(
       });
 
       const events = await eventParseTripleCreated(ctx.writeConfig.publicClient, tripleTxHash as Hex);
-      for (let i = 0; i < newTripleEntries.length; i++) {
+      for (let i = 0; i < uniqueNewEntries.length; i++) {
         const termId = events[i]?.args?.termId;
-        const entry = newTripleEntries[i];
-        if (termId) {
+        if (!termId) {
+          throw new PublishPipelineError("triple_creation_failed", labels.errorTripleCreation);
+        }
+        const key = atomKeyForEntry(uniqueNewEntries[i]);
+        for (const [j, entry] of duplicatesByKey.get(key)!.entries()) {
           resolvedByIndex[entry.index] = {
             proposalId: entry.proposalId,
             role: entry.role,
@@ -153,10 +170,8 @@ export async function resolveTriples(
             predicateAtomId: entry.predicateAtomId,
             objectAtomId: entry.objectAtomId,
             tripleTermId: String(termId),
-            isExisting: false,
+            isExisting: j > 0,
           };
-        } else {
-          throw new PublishPipelineError("triple_creation_failed", labels.errorTripleCreation);
         }
       }
     } catch (error) {
@@ -264,12 +279,26 @@ export async function resolveDerivedTriples(params: {
     }
   }
 
+  // Dedup new entries by atom key — create each unique triple only once
+  const atomKeyForDerived = (e: DerivedEntry) =>
+    `${e.subjectAtomId}-${e.predicateAtomId}-${e.objectAtomId}`;
+  const uniqueNewEntries: DerivedEntry[] = [];
+  const derivedDupsByKey = new Map<string, DerivedEntry[]>();
+  for (const entry of newEntries) {
+    const key = atomKeyForDerived(entry);
+    if (!derivedDupsByKey.has(key)) {
+      derivedDupsByKey.set(key, []);
+      uniqueNewEntries.push(entry);
+    }
+    derivedDupsByKey.get(key)!.push(entry);
+  }
+
   let derivedTxHash: string | null = null;
-  if (newEntries.length > 0) {
+  if (uniqueNewEntries.length > 0) {
     try {
-      const subjects = newEntries.map((e) => asHexId(e.subjectAtomId)!);
-      const predicates = newEntries.map((e) => asHexId(e.predicateAtomId)!);
-      const objects = newEntries.map((e) => asHexId(e.objectAtomId)!);
+      const subjects = uniqueNewEntries.map((e) => asHexId(e.subjectAtomId)!);
+      const predicates = uniqueNewEntries.map((e) => asHexId(e.predicateAtomId)!);
+      const objects = uniqueNewEntries.map((e) => asHexId(e.objectAtomId)!);
 
       if (subjects.some((s) => !s) || predicates.some((p) => !p) || objects.some((o) => !o)) {
         throw new PublishPipelineError("triple_creation_failed", labels.errorTripleCreation);
@@ -277,8 +306,8 @@ export async function resolveDerivedTriples(params: {
 
       const mvConfig = await multiVaultMultiCallIntuitionConfigs(sdkReadConfig(ctx.writeConfig));
       const tripleCostOnly = BigInt(mvConfig.triple_cost);
-      const deposits = Array(newEntries.length).fill(tripleCostOnly) as bigint[];
-      const totalValue = tripleCostOnly * BigInt(newEntries.length);
+      const deposits = Array(uniqueNewEntries.length).fill(tripleCostOnly) as bigint[];
+      const totalValue = tripleCostOnly * BigInt(uniqueNewEntries.length);
 
       derivedTxHash = await multiVaultCreateTriples(sdkWriteConfig(ctx.writeConfig), {
         args: [subjects as Hex[], predicates as Hex[], objects as Hex[], deposits],
@@ -286,12 +315,15 @@ export async function resolveDerivedTriples(params: {
       });
 
       const events = await eventParseTripleCreated(ctx.writeConfig.publicClient, derivedTxHash as Hex);
-      for (let i = 0; i < newEntries.length; i++) {
+      for (let i = 0; i < uniqueNewEntries.length; i++) {
         const termId = events[i]?.args?.termId;
         if (!termId) {
           throw new PublishPipelineError("triple_creation_failed", labels.errorTripleCreation);
         }
-        resolvedDerived.set(newEntries[i].stableKey, String(termId));
+        const key = atomKeyForDerived(uniqueNewEntries[i]);
+        for (const entry of derivedDupsByKey.get(key)!) {
+          resolvedDerived.set(entry.stableKey, String(termId));
+        }
       }
     } catch (error) {
       if (error instanceof PublishPipelineError) throw error;

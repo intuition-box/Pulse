@@ -11,20 +11,34 @@ import type { MainRef } from "./mainRef";
 import { isStanceId, stanceMainId } from "./idPrefixes";
 import { buildPublishPlan } from "./publishPlan";
 
+export type AssignNestedResult = {
+  byDraft: Map<string, NestedProposalDraft[]>;
+  orphanedKeys: Set<string>;
+};
+
 export function assignNestedToDrafts(
   nestedEdges: NestedProposalDraft[],
   draftPosts: DraftPost[],
   proposals: ProposalDraft[],
   derivedTriples?: DerivedTripleDraft[],
-): Map<string, NestedProposalDraft[]> {
-  const result = new Map<string, NestedProposalDraft[]>();
-  for (const d of draftPosts) result.set(d.id, []);
+): AssignNestedResult {
+  const byDraft = new Map<string, NestedProposalDraft[]>();
+  for (const d of draftPosts) byDraft.set(d.id, []);
+  const orphanedKeys = new Set<string>();
 
   const proposalToDraft = new Map<string, string>();
   for (const d of draftPosts) for (const pid of d.proposalIds) proposalToDraft.set(pid, d.id);
 
   const stableKeyToProposalId = new Map<string, string>();
   for (const p of proposals) if (p.stableKey) stableKeyToProposalId.set(p.stableKey, p.id);
+
+  const outermostKeyToDraft = new Map<string, string>();
+  for (const p of proposals) {
+    if (p.outermostMainKey) {
+      const did = proposalToDraft.get(p.id);
+      if (did) outermostKeyToDraft.set(p.outermostMainKey, did);
+    }
+  }
 
   const derivedKeyToDraft = new Map<string, string>();
   if (derivedTriples) {
@@ -58,33 +72,28 @@ export function assignNestedToDrafts(
         if (!draftId) draftId = nestedKeyToDraft.get(edge.object.tripleKey);
         if (!draftId) draftId = derivedKeyToDraft.get(edge.object.tripleKey);
       }
+      if (!draftId) draftId = outermostKeyToDraft.get(edge.stableKey);
       const hasTripleRef = edge.subject.type === "triple" || edge.object.type === "triple";
       if (!draftId && hasTripleRef && round < MAX_ROUNDS - 1) {
         deferred.push(edge);
         continue;
       }
-      draftId ??= draftPosts[0]?.id;
-      if (edge.stableKey && draftId) nestedKeyToDraft.set(edge.stableKey, draftId);
-      if (draftId && result.has(draftId)) result.get(draftId)!.push(edge);
+      if (!draftId) {
+        if (edge.stableKey) orphanedKeys.add(edge.stableKey);
+        continue;
+      }
+      if (edge.stableKey) nestedKeyToDraft.set(edge.stableKey, draftId);
+      if (byDraft.has(draftId)) byDraft.get(draftId)!.push(edge);
     }
     remaining = deferred;
     if (deferred.length === prevCount) break;
   }
 
-  if (remaining.length > 0 && draftPosts[0]) {
-    const fallbackId = draftPosts[0].id;
-    const bucket = result.get(fallbackId)!;
-    const existingKeys = new Set(bucket.map((e) => e.stableKey));
-    remaining.sort((a, b) => a.stableKey.localeCompare(b.stableKey));
-    for (const edge of remaining) {
-      if (!existingKeys.has(edge.stableKey)) {
-        if (edge.stableKey) nestedKeyToDraft.set(edge.stableKey, fallbackId);
-        bucket.push(edge);
-      }
-    }
+  for (const edge of remaining) {
+    if (edge.stableKey) orphanedKeys.add(edge.stableKey);
   }
 
-  return result;
+  return { byDraft, orphanedKeys };
 }
 
 export function groupResolvedByDraft(
@@ -95,6 +104,7 @@ export function groupResolvedByDraft(
   nestedProposals: NestedProposalDraft[],
   mainRefByDraft?: Map<string, MainRef | null>,
   derivedTriples?: DerivedTripleDraft[],
+  nestedRefLabels?: Map<string, string>,
 ): DraftPublishPayload[] {
   const proposalToDraft = new Map<string, string>();
   for (const draft of draftPosts) {
@@ -106,6 +116,14 @@ export function groupResolvedByDraft(
   const stableKeyToProposalId = new Map<string, string>();
   for (const p of proposals) {
     if (p.stableKey) stableKeyToProposalId.set(p.stableKey, p.id);
+  }
+
+  const outermostKeyToDraft = new Map<string, string>();
+  for (const p of proposals) {
+    if (p.outermostMainKey) {
+      const did = proposalToDraft.get(p.id);
+      if (did) outermostKeyToDraft.set(p.outermostMainKey, did);
+    }
   }
 
   const payloads = new Map<string, DraftPublishPayload>();
@@ -147,14 +165,17 @@ export function groupResolvedByDraft(
     }
 
     const draftMainRef = mainRefByDraft?.get(draftId);
-    const forceSupporting = draftMainRef?.type === "nested";
+    const forceSupporting = draftMainRef?.type === "nested" || draftMainRef?.type === "error";
+    const role = forceSupporting ? "SUPPORTING" : t.role;
     const proposal = proposals.find((p) => p.id === t.proposalId);
+    const needsLabels = proposal && (!t.isExisting || role === "MAIN");
     payloads.get(draftId)!.triples.push({
       proposalId: t.proposalId,
       tripleTermId: t.tripleTermId,
       isExisting: t.isExisting,
-      role: forceSupporting ? "SUPPORTING" : t.role,
-      ...(proposal && !t.isExisting ? { sLabel: proposal.sText, pLabel: proposal.pText, oLabel: proposal.oText } : {}),
+      role,
+      ...(proposal?.stableKey ? { stableKey: proposal.stableKey } : {}),
+      ...(needsLabels ? { sLabel: proposal.sText, pLabel: proposal.pText, oLabel: proposal.oText } : {}),
     });
   }
 
@@ -172,6 +193,23 @@ export function groupResolvedByDraft(
   }
 
   const edgeById = new Map(nestedProposals.map((e) => [e.id, e]));
+  const edgeByStableKey = new Map(nestedProposals.map((e) => [e.stableKey, e]));
+  const coreStableKeys = new Set(proposals.filter((p) => p.stableKey).map((p) => p.stableKey));
+
+  function findRootOwner(edge: NestedProposalDraft, visited?: Set<string>): string | undefined {
+    const v = visited ?? new Set<string>();
+    const parentKey = edge.subject.type === "triple" ? edge.subject.tripleKey
+      : edge.object.type === "triple" ? edge.object.tripleKey
+      : undefined;
+    if (!parentKey) return undefined;
+    if (coreStableKeys.has(parentKey)) return parentKey;
+    if (v.has(parentKey)) return parentKey; // cycle guard
+    v.add(parentKey);
+    const parentEdge = edgeByStableKey.get(parentKey);
+    if (!parentEdge) return parentKey;
+    return findRootOwner(parentEdge, v);
+  }
+
   const nestedKeyToDraft = new Map<string, string>();
   for (const n of resolvedNestedTriples) {
     const edge = edgeById.get(n.nestedProposalId);
@@ -189,22 +227,26 @@ export function groupResolvedByDraft(
         if (!draftId) draftId = nestedKeyToDraft.get(edge.object.tripleKey);
         if (!draftId) draftId = derivedKeyToDraft.get(edge.object.tripleKey);
       }
+      if (!draftId && edge) draftId = outermostKeyToDraft.get(edge.stableKey);
     }
 
-    draftId ??= draftPosts[0]?.id;
-    if (edge && draftId) nestedKeyToDraft.set(edge.stableKey, draftId);
+    if (!draftId) continue;
+    if (edge) nestedKeyToDraft.set(edge.stableKey, draftId);
 
-    const isMainNested = draftId != null && mainRefByDraft?.get(draftId)?.type === "nested"
+    const isMainNested = mainRefByDraft?.get(draftId)?.type === "nested"
       && (mainRefByDraft.get(draftId) as { nestedId: string }).nestedId === n.nestedProposalId;
 
-    if (draftId) {
-      payloads.get(draftId)!.nestedTriples.push({
-        nestedProposalId: n.nestedProposalId,
-        tripleTermId: n.tripleTermId,
-        isExisting: n.isExisting,
-        role: isMainNested ? "MAIN" : "SUPPORTING",
-      });
-    }
+    const ownerStableKey = edge ? findRootOwner(edge) : undefined;
+
+    payloads.get(draftId)!.nestedTriples.push({
+      nestedProposalId: n.nestedProposalId,
+      tripleTermId: n.tripleTermId,
+      isExisting: n.isExisting,
+      role: isMainNested ? "MAIN" : "SUPPORTING",
+      ...(edge && nestedRefLabels ? { chainLabel: nestedRefLabels.get(edge.stableKey) } : {}),
+      ...(edge ? { edgeKind: edge.edgeKind } : {}),
+      ...(ownerStableKey ? { ownerStableKey } : {}),
+    });
   }
 
   return draftPosts.map((d) => payloads.get(d.id)!);

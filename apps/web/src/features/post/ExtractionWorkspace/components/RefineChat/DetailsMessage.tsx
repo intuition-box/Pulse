@@ -14,7 +14,7 @@ import type {
 import { safeDisplayLabel } from "../../extraction";
 import type { AtomResult } from "@/lib/intuition/types";
 import { normalizeLabelForChain } from "@/lib/format/normalizeLabel";
-import { validateAtomRelevance, getReferenceBodyForProposal } from "@/lib/validation/semanticRelevance";
+import { validateAtomRelevance, isAllowed, getReferenceBodyForProposal } from "@/lib/validation/semanticRelevance";
 import type { TripleVaultMetrics } from "./useTripleVaultMetrics";
 import styles from "./detailsMessage.module.css";
 
@@ -814,7 +814,7 @@ export function DetailsMessage({
     const body = getReferenceBodyForProposal(proposalId, draftPosts);
     if (body) {
       const check = validateAtomRelevance(label, body, field);
-      if (!check.valid) {
+      if (!isAllowed(check)) {
         setAtomError(check.reason ?? "This atom is not related to the post text.");
         return;
       }
@@ -830,7 +830,7 @@ export function DetailsMessage({
       const body = getReferenceBodyForProposal(proposalId, draftPosts);
       if (body) {
         const check = validateAtomRelevance(label, body, field);
-        if (!check.valid) {
+        if (!isAllowed(check)) {
           setAtomError(check.reason ?? "This term is not related to the post text.");
           return;
         }
@@ -868,19 +868,61 @@ export function DetailsMessage({
         if (nestedSubTripleKeys.has(e.stableKey)) return false;
         return edgeBelongsToDraft(e);
       });
+      const mainProposal = proposals.find(
+        (p) => p.id === draft.mainProposalId && p.status === "approved",
+      );
+      const mainNestedEdge = mainProposal?.outermostMainKey
+        ? draftNestedEdges.find((e) => e.stableKey === mainProposal.outermostMainKey) ?? null
+        : null;
+      const otherNestedEdges = mainNestedEdge
+        ? draftNestedEdges.filter((e) => e.id !== mainNestedEdge.id)
+        : draftNestedEdges;
       const draftProposals = proposals.filter(
         (p) => draft.proposalIds.includes(p.id) && p.status === "approved" && !nestedSubTripleKeys.has(p.stableKey),
       );
-      return { draft, draftProposals, draftNestedEdges };
+      return { draft, draftProposals, mainNestedEdge, otherNestedEdges };
     });
   }, [draftPosts, proposals, nestedEdges]);
 
   return (
     <div className={styles.container}>
-      {draftData.map(({ draft, draftProposals, draftNestedEdges }, i) => (
+      {draftData.map(({ draft, draftProposals, mainNestedEdge, otherNestedEdges }, i) => (
         <div key={draft.id} className={styles.postGroup}>
           {draftPosts.length > 1 && (
             <span className={styles.postHeader}>Post {i + 1}</span>
+          )}
+          {mainNestedEdge && (
+            <NestedRow
+              key={mainNestedEdge.id}
+              edge={mainNestedEdge}
+              proposals={proposals}
+              nestedEdges={nestedEdges}
+              derivedTriples={derivedTriples}
+              approvedTripleStatuses={approvedTripleStatuses}
+              tripleVaultMetrics={tripleVaultMetrics}
+              tripleMetricsLoading={tripleMetricsLoading}
+              tripleMetricsError={tripleMetricsError}
+              expandedTriple={expandedTriple}
+              expandedDerived={expandedDerived}
+              editingSlot={editingSlot}
+              atomError={atomError}
+              editingNestedPredicate={editingNestedPredicate}
+              editingNestedAtom={editingNestedAtom}
+              onToggle={handleToggle}
+              onToggleDerived={handleToggleDerived}
+              onEditSlot={handleEditSlot}
+              onEditNestedPredicate={handleEditNestedPredicate}
+              onEditNestedAtom={handleEditNestedAtom}
+              searchAtomForEdit={searchAtomForEdit}
+              onSelectAtom={handleSelectAtom}
+              onSetNewTerm={onSetNewTermLocal ? handleSetNewTermLocal : undefined}
+              onSelectNestedPredicate={handleSelectNestedPredicate}
+              onSelectNestedAtom={handleSelectNestedAtom}
+              onSetNewNestedPredicate={handleSetNewNestedPredicate}
+              onSetNewNestedAtom={handleSetNewNestedAtom}
+              onClearError={() => setAtomError(null)}
+              resolvedAtomMap={resolvedAtomMap}
+            />
           )}
           {draftProposals.map((p) => {
             const status = approvedTripleStatuses.find((s) => s.proposalId === p.id);
@@ -905,7 +947,7 @@ export function DetailsMessage({
               />
             );
           })}
-          {draftNestedEdges.map((edge) => (
+          {otherNestedEdges.map((edge) => (
             <NestedRow
               key={edge.id}
               edge={edge}

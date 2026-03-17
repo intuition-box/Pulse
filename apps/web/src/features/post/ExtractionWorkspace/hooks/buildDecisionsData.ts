@@ -1,4 +1,11 @@
-import type { AtomAlternative, AtomMeta, DraftPost, ProposalDraft } from "../extraction";
+import type {
+  AtomAlternative,
+  AtomMeta,
+  DraftPost,
+  MainRef,
+  NestedProposalDraft,
+  ProposalDraft,
+} from "../extraction";
 
 export function humanReadablePath(
   decisionPath: string | null | undefined,
@@ -78,6 +85,11 @@ function formatPosition(cfg: PositionConfig): string {
 export function buildReasoningSummaryText(
   proposals: ProposalDraft[],
   draftPosts: DraftPost[],
+  opts?: {
+    mainRefByDraft?: Map<string, MainRef | null>;
+    nestedProposals?: NestedProposalDraft[];
+    nestedRefLabels?: Map<string, string>;
+  },
 ): string {
   const proposalMap = new Map(proposals.map((p) => [p.id, p]));
   const multiPost = draftPosts.length > 1;
@@ -92,17 +104,26 @@ export function buildReasoningSummaryText(
 
     if (draftProposals.length === 0) continue;
 
+    const mainRef = opts?.mainRefByDraft?.get(draft.id) ?? null;
+    const mainNestedSummary = mainRef?.type === "nested"
+      ? opts?.nestedRefLabels?.get(mainRef.nestedStableKey)
+        ?? opts?.nestedProposals?.find((n) => n.stableKey === mainRef.nestedStableKey)?.predicate
+        ?? null
+      : null;
+
+    const claimLabel = mainNestedSummary ? "Leaf" : "Claim";
     const claimBlocks = draftProposals.map((p) => {
       const positions = [
         formatPosition({ position: "SUBJECT", rawLabel: p.sText, matchedLabel: p.subjectMatchedLabel, termId: p.subjectAtomId, confidence: p.subjectConfidence, meta: p.subjectMeta }),
         formatPosition({ position: "PREDICATE", rawLabel: p.pText, matchedLabel: p.predicateMatchedLabel, termId: p.predicateAtomId, confidence: p.predicateConfidence, meta: p.predicateMeta }),
         formatPosition({ position: "OBJECT", rawLabel: p.oText, matchedLabel: p.objectMatchedLabel, termId: p.objectAtomId, confidence: p.objectConfidence, meta: p.objectMeta }),
       ];
-      return `  Claim: ${p.sText} | ${p.pText} | ${p.oText}\n${positions.join("\n")}`;
+      return `  ${claimLabel}: ${p.sText} | ${p.pText} | ${p.oText}\n${positions.join("\n")}`;
     });
 
     const header = multiPost ? `Post ${i + 1}:\n` : "";
-    postBlocks.push(`${header}${claimBlocks.join("\n\n")}`);
+    const mainBlock = mainNestedSummary ? `  MAIN: ${mainNestedSummary}\n\n` : "";
+    postBlocks.push(`${header}${mainBlock}${claimBlocks.join("\n\n")}`);
   }
 
   return postBlocks.join("\n\n");

@@ -1,5 +1,3 @@
-
-
 import type { LanguageModel } from "ai";
 import type { DecomposedClaim } from "../types.js";
 import type { GraphResult } from "./claimPlanner.js";
@@ -8,6 +6,7 @@ import { safeTrim, normalizeForCompare } from "./text.js";
 import { retryWithBackoff, isLlmUnavailable } from "../utils/concurrency.js";
 import { WEAK_OBJECT_PLACEHOLDERS, PREP_ONLY_RE } from "./rules/extractionRules.js";
 import { trackFallback } from "./fallbackTracker.js";
+import { fixCompoundPredicate } from "./canonicalization.js";
 
 export type DecomposeDeps = {
   runClaimDecomposer: (model: LanguageModel, payload: string) => Promise<{ keep: boolean; reason?: string; claims: Array<{ text: string; role: string; group?: number; candidateKind?: string | null; confidence?: number | null }> }>;
@@ -114,7 +113,8 @@ export async function graphFromClaim(claimText: string, sentenceContext: string,
     if (PREP_ONLY_RE.test(c.predicate.trim().toLowerCase())) return null;
 
     const rawCore = { subject: c.subject.trim(), predicate: c.predicate.trim(), object: c.object.trim() };
-    const normalizedCore = normalizeCoreWithClaimText(rawCore, claimText);
+    const fixedCore = fixCompoundPredicate(rawCore);
+    const normalizedCore = normalizeCoreWithClaimText(fixedCore, claimText);
     const rawModifiers = parsed.modifiers
       .map((m) => ({ prep: m.prep.trim(), value: m.value.trim() }))
       .filter((m) => m.prep && m.value);

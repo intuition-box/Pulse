@@ -90,7 +90,7 @@ export const CAUSAL_COVERAGE_THRESHOLD = 0.8;
 
 export const SHORT_REASON_MAX_WORDS = 4;
 
-export const CAUSAL_BEFORE_MIN_WORDS = 3;
+export const CAUSAL_BEFORE_MIN_WORDS = 2;
 
 export const SUB_PROPOSITION_MIN_WORDS = 3;
 export const SUB_PROPOSITION_MAX_WORDS = 12;

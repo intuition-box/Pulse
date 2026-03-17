@@ -2,10 +2,15 @@ import { requireSiweAuth } from "@/server/auth/siwe";
 import { isRecord } from "@/lib/isRecord";
 import { getErrorMessage } from "@/lib/getErrorMessage";
 import { validateSemanticGuardText } from "./validate";
-import { validateAtomRelevance, validateTripleRelevance } from "@/lib/validation/semanticRelevance";
+import { validateAtomRelevance, checkMeaningPreservation, isAllowed, type NestedEdgeContext } from "@/lib/validation/semanticRelevance";
+import { buildNestedEdgeContexts, resolveNestedLabels, type NestedEdgeLike } from "@/features/post/ExtractionWorkspace/extraction";
 import { conceptKey } from "@/lib/format/conceptKey";
-import { searchAtomsServer, searchTriplesServer } from "@/lib/intuition/search";
+import { searchAtomsServer, searchTriplesServer, type ExactLookupConfig } from "@/lib/intuition/search";
 import type { AtomResult, TripleResult, SearchResultsPayload } from "@/lib/intuition/types";
+import { createPublicClient, http, type Address } from "viem";
+import { getMultiVaultAddressFromChainId } from "@0xintuition/sdk";
+import { intuitionTestnet } from "@/lib/chain";
+import { normalizeAtomLabel } from "@/features/post/ExtractionWorkspace/publish/config";
 import { NextResponse } from "next/server";
 import { getRefineStreamConfig, type RefineProposal } from "@db/agents/refine";
 import { getGroqModel } from "@db/agents/providers";
@@ -15,14 +20,37 @@ import type { ModelMessage } from "ai";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/* ── Exact on-chain atom lookup config (read-only, no wallet needed) ── */
+
+const refinePublicClient = createPublicClient({
+  chain: intuitionTestnet,
+  transport: http(),
+});
+
+const exactLookupConfig: ExactLookupConfig = {
+  publicClient: refinePublicClient,
+  multivaultAddress: getMultiVaultAddressFromChainId(intuitionTestnet.id) as Address,
+  normalizeLabel: normalizeAtomLabel,
+};
+
+type RawNestedEdge = {
+  stableKey: string;
+  edgeKind: string;
+  predicate: string;
+  subject: { type: string; tripleKey?: string; label?: string };
+  object: { type: string; tripleKey?: string; label?: string };
+};
+
 type RequestBody = {
   messages: ModelMessage[];
-  proposals: RefineProposal[];
+  proposals: (RefineProposal & { stableKey?: string })[];
   sourceText: string;
   themeTitle?: string;
   parentClaim?: string;
   reasoningSummary?: string;
   draftPosts?: Array<{ body: string }>;
+  nestedEdges?: RawNestedEdge[];
+  derivedTriples?: Array<{ stableKey: string; subject: string; predicate: string; object: string }>;
 };
 
 function validateBody(body: unknown): body is RequestBody {
@@ -49,25 +77,28 @@ const VALID_TRIPLE_FIELDS = new Set(["subject", "predicate", "object"]);
 function checkRelevance(
   proposed: { subject: string; predicate: string; object: string },
   refText: string,
+  nestedCtx?: NestedEdgeContext[],
 ): string | null {
   if (!proposed.subject.trim() || !proposed.predicate.trim() || !proposed.object.trim()) {
     return "All triple fields (subject, predicate, object) must be non-empty.";
   }
   const sCheck = validateAtomRelevance(proposed.subject, refText, "sText");
-  if (!sCheck.valid) return sCheck.reason ?? "Subject is not related to the post text.";
+  if (!isAllowed(sCheck)) return sCheck.reason ?? "Subject is not related to the post text.";
   const oCheck = validateAtomRelevance(proposed.object, refText, "oText");
-  if (!oCheck.valid) return oCheck.reason ?? "Object is not related to the post text.";
-  const tripleCheck = validateTripleRelevance(proposed, refText);
-  if (!tripleCheck.valid) return tripleCheck.reason ?? "Claim is not related to the post text.";
+  if (!isAllowed(oCheck)) return oCheck.reason ?? "Object is not related to the post text.";
+  const tripleCheck = checkMeaningPreservation(refText, proposed, nestedCtx);
+  if (!isAllowed(tripleCheck)) return tripleCheck.reason ?? "Claim does not preserve the meaning of the post text.";
   return null;
 }
 
 function guardToolCall(
   name: string,
   args: Record<string, unknown>,
-  proposals: RefineProposal[],
+  proposals: (RefineProposal & { stableKey?: string })[],
   sourceText: string,
   draftPosts?: Array<{ body: string }>,
+  serverNestedEdges?: NestedEdgeLike[],
+  serverNestedRefLabels?: Map<string, string>,
 ): string | null {
   if (name === "update_triple") {
     const proposalId = args.proposalId as string;
@@ -76,9 +107,8 @@ function guardToolCall(
     if (isHexId(value)) return "Use human-readable labels, not on-chain IDs.";
     if (!VALID_TRIPLE_FIELDS.has(field)) return "Invalid field for update_triple.";
     if (!value?.trim()) return "update_triple requires a non-empty value.";
-    if (proposalId.startsWith("nested:")) return null;
     const proposal = proposals.find((p) => p.id === proposalId);
-    if (!proposal) return `Proposal ${proposalId} not found.`;
+    if (!proposal) return proposalId.startsWith("nested:") ? null : `Proposal ${proposalId} not found.`;
 
     const refText = (proposal.postNumber != null && draftPosts?.[proposal.postNumber - 1]?.body) || sourceText;
 
@@ -87,7 +117,10 @@ function guardToolCall(
       predicate: field === "predicate" ? value : proposal.predicate,
       object: field === "object" ? value : proposal.object,
     };
-    const blocked = checkRelevance(proposed, refText);
+    const nestedCtx = proposal.stableKey && serverNestedEdges && serverNestedRefLabels
+      ? buildNestedEdgeContexts(proposal.stableKey, serverNestedEdges, serverNestedRefLabels)
+      : undefined;
+    const blocked = checkRelevance(proposed, refText, nestedCtx);
     if (blocked) return blocked;
   }
 
@@ -126,7 +159,10 @@ function guardToolCall(
       predicate: field === "predicate" ? label : proposal.predicate,
       object: field === "object" ? label : proposal.object,
     };
-    const blocked = checkRelevance(proposed, refText);
+    const nestedCtx = proposal.stableKey && serverNestedEdges && serverNestedRefLabels
+      ? buildNestedEdgeContexts(proposal.stableKey, serverNestedEdges, serverNestedRefLabels)
+      : undefined;
+    const blocked = checkRelevance(proposed, refText, nestedCtx);
     if (blocked) return blocked;
   }
 
@@ -232,10 +268,24 @@ export async function POST(request: Request) {
     );
   }
 
-  const { messages, proposals, sourceText, themeTitle, parentClaim, reasoningSummary, draftPosts } = body;
+  const { messages, proposals, sourceText, themeTitle, parentClaim, reasoningSummary, draftPosts, nestedEdges: rawNestedEdges, derivedTriples: rawDerivedTriples } = body;
 
-  const mutableProposals: RefineProposal[] = proposals.map((p) => ({ ...p }));
+  const mutableProposals: (RefineProposal & { stableKey?: string })[] = proposals.map((p) => ({ ...p }));
   const mutableDraftPosts = (draftPosts ?? []).map((d) => ({ ...d }));
+
+  const serverNestedRefLabels = new Map<string, string>();
+  for (const p of proposals) {
+    if (p.stableKey) {
+      serverNestedRefLabels.set(p.stableKey, `${p.subject} ${p.predicate} ${p.object}`);
+    }
+  }
+  for (const dt of (rawDerivedTriples ?? [])) {
+    if (dt.stableKey && !serverNestedRefLabels.has(dt.stableKey)) {
+      serverNestedRefLabels.set(dt.stableKey, `${dt.subject} ${dt.predicate} ${dt.object}`);
+    }
+  }
+  const serverNestedEdges: NestedEdgeLike[] = rawNestedEdges ?? [];
+  resolveNestedLabels(serverNestedEdges, serverNestedRefLabels);
 
   try {
     const model = getGroqModel();
@@ -250,7 +300,7 @@ export async function POST(request: Request) {
       reasoningSummary,
       draftPosts,
       searchAtoms: async (query, limit) => {
-        return searchAtomsServer(query, limit);
+        return searchAtomsServer(query, limit, exactLookupConfig);
       },
       searchTriples: async (query, limit) => {
         return searchTriplesServer(query, limit);
@@ -306,7 +356,7 @@ export async function POST(request: Request) {
                 searchToolCalls.set(part.toolCallId, { kind, query, context });
                 continue;
               }
-              const blocked = guardToolCall(part.toolName, args, mutableProposals, sourceText, mutableDraftPosts);
+              const blocked = guardToolCall(part.toolName, args, mutableProposals, sourceText, mutableDraftPosts, serverNestedEdges, serverNestedRefLabels);
               if (blocked) {
                 controller.enqueue(
                   encoder.encode(sseData({ v: 1, type: "guard-blocked", payload: { reason: blocked, toolName: part.toolName, toolCallId: part.toolCallId } })),
