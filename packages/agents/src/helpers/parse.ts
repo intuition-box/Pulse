@@ -24,6 +24,11 @@ export function looksLikeProposition(text: string): boolean {
   return words.length >= 3 && PROBABLE_VERB_RE.test(text);
 }
 
+function looksLikeMetaProposition(text: string): boolean {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  return words.length >= 2 && PROBABLE_VERB_RE.test(text);
+}
+
 export function parseMetaClaim(claim: string): { source: string; verb: string; proposition: string } | null {
   const c = claim.trim().replace(/\.$/, "");
 
@@ -45,7 +50,7 @@ export function parseMetaClaim(claim: string): { source: string; verb: string; p
 
   const subProp = tryExtractSubProposition(remainder);
   if (subProp) return { source: m2[1].trim(), verb, proposition: remainder };
-  if (looksLikeProposition(remainder)) return { source: m2[1].trim(), verb, proposition: remainder };
+  if (looksLikeMetaProposition(remainder)) return { source: m2[1].trim(), verb, proposition: remainder };
 
   return null;
 }

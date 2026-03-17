@@ -42,6 +42,159 @@ export function preservesPredicateStructure(raw: string, matched: string): boole
   return true;
 }
 
+export type MeaningPreservation = "strict_equivalent" | "preserve" | "ambiguous" | "reject";
+
+const VERB_SUFFIX_RE = /^(.+?)(s|es|ed|ing)$/;
+
+function stemVerb(word: string): string {
+  const m = word.match(VERB_SUFFIX_RE);
+  if (!m) return word;
+  const base = m[1];
+  const suffix = m[2];
+  if (suffix === "es" && (base.endsWith("sh") || base.endsWith("ch") || base.endsWith("x") || base.endsWith("z") || base.endsWith("ss"))) return base;
+  if (suffix === "s") return base;
+  if (suffix === "ed") return base.endsWith("e") ? base : base;
+  if (suffix === "ing") return base;
+  return word;
+}
+
+function areSameVerbForm(a: string, b: string): boolean {
+  const wordsA = a.split(/\s+/);
+  const wordsB = b.split(/\s+/);
+  if (wordsA.length !== wordsB.length) return false;
+  return wordsA.every((wA, i) => {
+    const wB = wordsB[i];
+    if (wA === wB) return true;
+    return stemVerb(wA) === stemVerb(wB);
+  });
+}
+
+const FREQUENCY_ADVERB_RE = /\b(usually|always|never|often|sometimes|rarely|frequently|seldom|generally|typically|occasionally|commonly|mostly|hardly|barely|scarcely)\b/i;
+
+function getFrequencyAdverbs(s: string): string[] {
+  const matches: string[] = [];
+  const re = new RegExp(FREQUENCY_ADVERB_RE.source, "gi");
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(s)) !== null) matches.push(m[0].toLowerCase());
+  return matches;
+}
+
+export function checkMeaningPreservation(
+  rawLabel: string,
+  candidateLabel: string,
+  position: AtomMatch["position"],
+  _claimContext?: string,
+): MeaningPreservation {
+  const rawCanon = canonicalizeForMatch(rawLabel);
+  const candCanon = canonicalizeForMatch(candidateLabel);
+
+  if (!rawCanon || !candCanon) return "reject";
+
+  // --- strict_equivalent: trivial identity ---
+  // Case, whitespace, accents, articles → already handled by canonicalizeForMatch
+  if (rawCanon === candCanon) return "strict_equivalent";
+
+  // Plural variants — for multi-word labels, always safe.
+  // For single-word labels where only difference is simple s/es suffix,
+  // this could be noun plural OR verb conjugation — only strict_equivalent
+  // for predicates (where conjugation is expected).
+  const rawVariants = pluralVariants(rawLabel);
+  const candVariants = pluralVariants(candidateLabel);
+  const rawWordCount = rawCanon.split(/\s+/).length;
+  const candWordCount = candCanon.split(/\s+/).length;
+  const isSingleWord = rawWordCount === 1 && candWordCount === 1;
+
+  let pluralMatch = false;
+  for (const rv of rawVariants) {
+    for (const cv of candVariants) {
+      if (rv === cv) { pluralMatch = true; break; }
+    }
+    if (pluralMatch) break;
+  }
+
+  if (pluralMatch) {
+    // Multi-word → always strict_equivalent (noun plurals in phrases)
+    // Single-word + predicate → strict_equivalent (verb conjugation OK)
+    // Single-word + ies/y pattern → strict_equivalent (clearly noun: policy/policies)
+    // Single-word + simple s + subject/object → ambiguous (could be verb)
+    if (!isSingleWord || position === "predicate") {
+      return "strict_equivalent";
+    }
+    // Check if it's clearly a noun plural pattern
+    const rc = canonicalize(rawLabel);
+    const cc = canonicalize(candidateLabel);
+    // ies/y pattern: policy/policies
+    const isClearNounPlural =
+      (rc.endsWith("ies") && cc.endsWith("y")) ||
+      (cc.endsWith("ies") && rc.endsWith("y")) ||
+      (rc.endsWith("es") && !rc.endsWith("ses") && cc === rc.slice(0, -2)) ||
+      (cc.endsWith("es") && !cc.endsWith("ses") && rc === cc.slice(0, -2));
+    if (isClearNounPlural) return "strict_equivalent";
+
+    // Noun suffix heuristic: words ending in common noun suffixes
+    // are clearly nouns, not verbs — plural is safe
+    const NOUN_SUFFIX_RE = /(?:tion|sion|ment|ness|ity|ism|ance|ence|ure|age|dom|ship|ing|ology|ics)s?$/i;
+    const shorter = rc.length < cc.length ? rc : cc;
+    if (NOUN_SUFFIX_RE.test(shorter)) return "strict_equivalent";
+
+    // Simple s-only difference on single word subject/object → ambiguous
+    // (could be verb conjugation: "reduces"/"reduce")
+  }
+
+  // Verb conjugation → strict_equivalent only for predicates
+  if (position === "predicate" && areSameVerbForm(rawCanon, candCanon)) {
+    return "strict_equivalent";
+  }
+
+  // --- reject: predicate structure mismatch ---
+  if (!preservesPredicateStructure(rawLabel, candidateLabel)) {
+    return "reject";
+  }
+
+  // Frequency adverb mismatch → reject
+  const rawAdverbs = getFrequencyAdverbs(rawLabel);
+  const candAdverbs = getFrequencyAdverbs(candidateLabel);
+  if (rawAdverbs.length !== candAdverbs.length ||
+      !rawAdverbs.every((a, i) => a === candAdverbs[i])) {
+    return "reject";
+  }
+
+  // --- reject: strict subset (one is fully contained but much shorter) ---
+  const rawTokens = tokenize(rawLabel);
+  const candTokens = tokenize(candidateLabel);
+  const overlap = tokenOverlap(rawTokens, candTokens);
+  const minSize = Math.min(rawTokens.size, candTokens.size);
+  const maxSize = Math.max(rawTokens.size, candTokens.size);
+
+  // One label is a proper subset of the other → reject (too generic or too specific)
+  if (overlap === minSize && minSize < maxSize && maxSize >= 2) {
+    return "reject";
+  }
+
+  // --- reject: semantic drift (candidate has many foreign tokens) ---
+  // Tokens in candidate that are NOT in raw label
+  let foreignCount = 0;
+  for (const t of candTokens) if (!rawTokens.has(t)) foreignCount++;
+  // If majority of candidate tokens are foreign → reject
+  if (candTokens.size >= 2 && foreignCount > candTokens.size / 2) {
+    return "reject";
+  }
+
+  // --- preserve vs ambiguous ---
+  // High overlap ratio → preserve; low overlap → ambiguous
+  if (maxSize === 0) return "ambiguous";
+  const overlapRatio = overlap / maxSize;
+
+  // If all tokens match but different order/form → preserve
+  if (overlapRatio >= 0.8) return "preserve";
+
+  // Some overlap but not enough certainty → ambiguous
+  if (overlapRatio > 0) return "ambiguous";
+
+  // No token overlap at all → reject
+  return "reject";
+}
+
 const THRESHOLDS: Record<AtomMatch["position"], PositionThresholds> = {
   subject:   { high: 800, low: 250 },
   predicate: { high: 900, low: 300 },
@@ -85,6 +238,31 @@ export function scoreCandidate(rawLabel: string, candidate: AtomCandidate): numb
   }
 
   return Math.round(score);
+}
+
+export function scoreCandidateWithContext(
+  rawLabel: string,
+  candidate: AtomCandidate,
+  claimContext?: string,
+): number {
+  let score = scoreCandidate(rawLabel, candidate);
+  if (!claimContext || score === 0) return score;
+
+  const rawTokens = tokenize(rawLabel);
+  const candTokens = tokenize(candidate.label);
+  const contextTokens = tokenize(claimContext);
+
+  for (const t of candTokens) {
+    if (!rawTokens.has(t)) {
+      if (contextTokens.has(t)) {
+        score += 30; // token found in context → relevance bonus
+      } else {
+        score -= 50; // foreign token absent from raw AND context → drift malus
+      }
+    }
+  }
+
+  return Math.max(0, Math.round(score));
 }
 
 function pluralVariants(label: string): string[] {
@@ -275,9 +453,7 @@ function validateLlmResult(
       (c) => canonicalizeForMatch(c.label) === canonicalizeForMatch(result.label),
     );
     if (byLabel) {
-      if (position === "predicate" && !preservesPredicateStructure(rawLabel, byLabel.label)) {
-
-      } else {
+      if (!(position === "predicate" && !preservesPredicateStructure(rawLabel, byLabel.label))) {
         return { ...result, termId: byLabel.termId, label: byLabel.label };
       }
     }
@@ -285,9 +461,7 @@ function validateLlmResult(
 
   const threshold = THRESHOLDS[position];
   if (deterministicBest && deterministicBest.score >= threshold.high) {
-    if (position === "predicate" && !preservesPredicateStructure(rawLabel, deterministicBest.candidate.label)) {
-
-    } else {
+    if (!(position === "predicate" && !preservesPredicateStructure(rawLabel, deterministicBest.candidate.label))) {
       return {
         position,
         rawLabel,
@@ -328,7 +502,6 @@ async function matchAtomInner(
   try {
     candidates = await cache.search(searchFn, rawLabel, searchLimit);
   } catch {
-
     return {
       position,
       rawLabel,
@@ -355,93 +528,96 @@ async function matchAtomInner(
   }
 
   const scored = candidates
-    .map((c) => ({ candidate: c, score: scoreCandidate(rawLabel, c) }))
+    .map((c) => ({ candidate: c, score: scoreCandidateWithContext(rawLabel, c, claimContext || undefined) }))
     .sort(compareScoredCandidates);
 
-  const best = scored[0];
-  const thresholds = THRESHOLDS[position];
   const topAlts = scored.slice(0, 3).map((s) => s.candidate);
+  const thresholds = THRESHOLDS[position];
 
-  const dup = findDuplicate(rawLabel, candidates);
-  if (dup) {
-
-    if (position === "predicate" && !preservesPredicateStructure(rawLabel, dup.label)) {
-
-    } else {
-      return {
-        position,
-        rawLabel,
-        choice: "existing",
-        termId: dup.termId,
-        label: dup.label,
-        confidence: 1,
-        decisionPath: "anti_dup",
-        alternatives: topAlts,
-      };
+  // Stage 0: strict_equivalent among ALL candidates — pick most consensual.
+  const strictGroup: AtomCandidate[] = [];
+  let isAntiDup = false;
+  for (const c of candidates) {
+    const mp = checkMeaningPreservation(rawLabel, c.label, position);
+    if (mp === "strict_equivalent") {
+      strictGroup.push(c);
     }
   }
 
-  if (best.score >= thresholds.high) {
-    if (position === "predicate" && !preservesPredicateStructure(rawLabel, best.candidate.label)) {
+  if (strictGroup.length === 0) {
+    // Check anti_dup (plural variant match) as fallback for strict_equivalent
+    const dup = findDuplicate(rawLabel, candidates);
+    if (dup && preservesPredicateStructure(rawLabel, dup.label)) {
+      strictGroup.push(dup);
+      isAntiDup = true;
+    }
+  }
 
-    } else {
+  if (strictGroup.length > 0) {
+    strictGroup.sort(consensusCompare);
+    const winner = strictGroup[0];
+    return {
+      position,
+      rawLabel,
+      choice: "existing",
+      termId: winner.termId,
+      label: winner.label,
+      confidence: 1,
+      decisionPath: isAntiDup ? "anti_dup" : "strict_equivalent",
+      alternatives: topAlts,
+    };
+  }
+
+  // Classify remaining candidates (strict_equivalent already handled above)
+  const preserveCandidates: { candidate: AtomCandidate; score: number }[] = [];
+  const ambiguousCandidates: { candidate: AtomCandidate; score: number }[] = [];
+
+  for (const s of scored) {
+    const mp = checkMeaningPreservation(rawLabel, s.candidate.label, position, claimContext);
+    if (mp === "strict_equivalent") continue; // already handled above
+    if (mp === "reject") continue; // eliminated
+    if (mp === "preserve") preserveCandidates.push(s);
+    if (mp === "ambiguous") ambiguousCandidates.push(s);
+  }
+
+  // Stage 2+3: high-score preserve candidates
+  if (preserveCandidates.length > 0) {
+    const bestPreserve = preserveCandidates[0]; // already sorted by score desc
+    if (bestPreserve.score >= thresholds.high) {
       return {
         position,
         rawLabel,
         choice: "existing",
-        termId: best.candidate.termId,
-        label: best.candidate.label,
-        confidence: Math.min(1, best.score / 1000),
+        termId: bestPreserve.candidate.termId,
+        label: bestPreserve.candidate.label,
+        confidence: Math.min(1, bestPreserve.score / 1000),
         decisionPath: "high_score",
         alternatives: topAlts,
       };
     }
   }
 
-  if (best.score < thresholds.low) {
-    if (llmMatcher) {
-      const llmResult = await llmMatcher(rawLabel, claimContext, scored.slice(0, 5).map((s) => s.candidate), position);
-      const validated = validateLlmResult(llmResult, candidates, rawLabel, position, best);
-      return { ...validated, decisionPath: validated.decisionPath ?? "llm_review", alternatives: validated.alternatives ?? topAlts };
-    }
-
-    return {
+  // Stage 4: LLM for ambiguous candidates
+  const llmCandidates = [...preserveCandidates, ...ambiguousCandidates];
+  if (llmCandidates.length > 0 && llmMatcher) {
+    const llmResult = await llmMatcher(
+      rawLabel, claimContext,
+      llmCandidates.slice(0, 5).map((s) => s.candidate),
       position,
-      rawLabel,
-      choice: "new",
-      termId: null,
-      label: rawLabel,
-      confidence: 0.3,
-      decisionPath: "no_llm_fallback",
-      alternatives: topAlts,
-    };
-  }
-
-  if (llmMatcher) {
-    const llmResult = await llmMatcher(rawLabel, claimContext, scored.slice(0, 5).map((s) => s.candidate), position);
+    );
+    const best = preserveCandidates[0] ?? ambiguousCandidates[0] ?? null;
     const validated = validateLlmResult(llmResult, candidates, rawLabel, position, best);
     return { ...validated, decisionPath: validated.decisionPath ?? "llm_review", alternatives: validated.alternatives ?? topAlts };
   }
 
-  if (position === "predicate" && !preservesPredicateStructure(rawLabel, best.candidate.label)) {
-    return {
-      position,
-      rawLabel,
-      choice: "new",
-      termId: null,
-      label: rawLabel,
-      confidence: 0.3,
-      decisionPath: "no_llm_fallback",
-      alternatives: topAlts,
-    };
-  }
+  // No LLM available — create new atom
   return {
     position,
     rawLabel,
-    choice: "existing",
-    termId: best.candidate.termId,
-    label: best.candidate.label,
-    confidence: best.score / 1000,
+    choice: "new",
+    termId: null,
+    label: rawLabel,
+    confidence: 0.3,
     decisionPath: "no_llm_fallback",
     alternatives: topAlts,
   };

@@ -117,3 +117,31 @@ export type Causal = {
   mainText: string;
   reasonText: string;
 };
+
+export type ClaimNode =
+  | { kind: "proposition"; text: string; role: "MAIN" | "SUPPORTING"; group: number }
+  | { kind: "clause"; text: string }
+  | { kind: "meta"; source: string; verb: string; child: ClaimNode }
+  | { kind: "conditional"; main: ClaimNode; condition: ClaimNode; kw: string; compoundKw?: string }
+  | { kind: "causal"; main: ClaimNode; reason: ClaimNode; marker: "because" | "since" };
+
+export type ClaimTreeLeaf = {
+  leafId: string;
+  text: string;
+};
+
+export type ClaimTreePlan = {
+  tree: ClaimNode;
+  claim: string;
+  role: "MAIN" | "SUPPORTING";
+  group: number;
+  leaves: ClaimTreeLeaf[];
+  graphKeys: string[];
+};
+
+export type TreeProcessResult = {
+  ref: import("./core.js").TermRef;
+  stableKey: string | null;
+  anchorTriple: (FlatTriple & { stableKey: string }) | null;
+  graphable: boolean;
+};

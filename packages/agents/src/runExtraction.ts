@@ -13,9 +13,10 @@ import { runPreFilter } from "./agents/pre-filter.js";
 
 import { safeTrim, stripOuterQuotes, ensurePeriod } from "./helpers/text.js";
 import { buildClaimPlans, type GraphResult } from "./helpers/claimPlanner.js";
-import { processClaimPlan } from "./helpers/claimProcessor.js";
-import { canonicalizePreGraph, deduplicateGraphPlans, enforceRoles } from "./helpers/canonicalization.js";
+import { processClaimPlan, processClaimTree } from "./helpers/claimProcessor.js";
+import { canonicalizePreGraph, deduplicateGraphPlans, deduplicateGraphTreePlans, enforceRoles } from "./helpers/canonicalization.js";
 import { parseMetaClaim } from "./helpers/parse.js";
+import { buildClaimTreePlans } from "./helpers/claimTree.js";
 
 import { selectAndDecompose, type DecomposeDeps, graphFromClaim, type GraphDeps } from "./helpers/llmAdapters.js";
 import { runRelationStage, type RelationDeps } from "./stages/relationStage.js";
@@ -30,6 +31,11 @@ const graphDeps: GraphDeps = { runGraphExtraction, getGroqModel };
 const relationDeps: RelationDeps = { runRelationLinking, getGroqModel, getGroqModelLight };
 const atomMatchDeps: AtomMatchDeps = { runAtomMatcher, getGroqModel, getGroqModelLight };
 const stanceDeps: StanceDeps = { runStanceVerification, getGroqModel };
+
+const USE_CLAIM_TREE = (() => {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env ?? {};
+  return env.EXTRACTION_CLAIM_TREE !== "0";
+})();
 
 type ParentFilterReason = "drop_unrelated" | "drop_duplicate_parent";
 
@@ -169,6 +175,19 @@ export async function runExtraction(inputText: string, options: ExtractionOption
   const parentContext = safeTrim(options.parentClaimText);
   const dropReasons: string[] = [];
 
+  if (parentContext && isDuplicateOfParentClaim(inputText, parentContext)) {
+    return {
+      perSegment,
+      nested,
+      derivedTriples,
+      llmCallCount,
+      rejection: {
+        code: "NO_NEW_INFORMATION",
+        detail: "Input duplicates the parent claim.",
+      },
+    };
+  }
+
   const needsPreFilter = !!parentContext || inputText.trim().length < 30 || inputText.trim().length > 3000;
   if (needsPreFilter) {
     try {
@@ -233,33 +252,66 @@ export async function runExtraction(inputText: string, options: ExtractionOption
 
     const existingNestedKeys = new Set<string>(nested.map((n) => n.stableKey));
 
-    const { plans, graphJobs } = buildClaimPlans(canonicalized, sentenceContext, (claim, ctx) => graphFromClaim(claim, ctx, graphDeps));
+    const graphFromClaimFn = (claim: string, ctx: string) => graphFromClaim(claim, ctx, graphDeps);
 
-    llmCallCount += graphJobs.size;
-    const graphKeys = [...graphJobs.keys()];
-    const graphResults = await Promise.allSettled(graphKeys.map((k) => graphJobs.get(k)!));
+    if (USE_CLAIM_TREE) {
+      const { plans: treePlans, graphJobs } = buildClaimTreePlans(canonicalized, sentenceContext, graphFromClaimFn);
 
-    for (const r of graphResults) {
-      if (r.status === "rejected" && isLlmUnavailable(r.reason)) {
-        return {
-          perSegment, nested, derivedTriples, llmCallCount,
-          rejection: { code: "LLM_UNAVAILABLE" as RejectionCode, detail: r.reason instanceof Error ? r.reason.message : String(r.reason) },
-        };
+      llmCallCount += graphJobs.size;
+      const graphKeys = [...graphJobs.keys()];
+      const graphResults = await Promise.allSettled(graphKeys.map((k) => graphJobs.get(k)!));
+
+      for (const r of graphResults) {
+        if (r.status === "rejected" && isLlmUnavailable(r.reason)) {
+          return {
+            perSegment, nested, derivedTriples, llmCallCount,
+            rejection: { code: "LLM_UNAVAILABLE" as RejectionCode, detail: r.reason instanceof Error ? r.reason.message : String(r.reason) },
+          };
+        }
       }
-    }
 
-    const graphMap = new Map<string, GraphResult | null>();
-    for (let gi = 0; gi < graphKeys.length; gi++) {
-      const r = graphResults[gi];
-      graphMap.set(graphKeys[gi], r.status === "fulfilled" ? r.value : null);
-    }
+      const graphMap = new Map<string, GraphResult | null>();
+      for (let gi = 0; gi < graphKeys.length; gi++) {
+        const r = graphResults[gi];
+        graphMap.set(graphKeys[gi], r.status === "fulfilled" ? r.value : null);
+      }
 
-    const dedupedPlans = deduplicateGraphPlans(plans, graphMap);
+      const dedupedPlans = deduplicateGraphTreePlans(treePlans, graphMap);
 
-    let tripleIdx = 0;
-    for (const plan of dedupedPlans) {
-      item.claims.push(processClaimPlan(plan, graphMap, i, tripleIdx, nested, existingNestedKeys, derivedTriples));
-      tripleIdx++;
+      let tripleIdx = 0;
+      for (const plan of dedupedPlans) {
+        item.claims.push(processClaimTree(plan, graphMap, i, tripleIdx, nested, existingNestedKeys, derivedTriples));
+        tripleIdx++;
+      }
+    } else {
+      const { plans, graphJobs } = buildClaimPlans(canonicalized, sentenceContext, graphFromClaimFn);
+
+      llmCallCount += graphJobs.size;
+      const graphKeys = [...graphJobs.keys()];
+      const graphResults = await Promise.allSettled(graphKeys.map((k) => graphJobs.get(k)!));
+
+      for (const r of graphResults) {
+        if (r.status === "rejected" && isLlmUnavailable(r.reason)) {
+          return {
+            perSegment, nested, derivedTriples, llmCallCount,
+            rejection: { code: "LLM_UNAVAILABLE" as RejectionCode, detail: r.reason instanceof Error ? r.reason.message : String(r.reason) },
+          };
+        }
+      }
+
+      const graphMap = new Map<string, GraphResult | null>();
+      for (let gi = 0; gi < graphKeys.length; gi++) {
+        const r = graphResults[gi];
+        graphMap.set(graphKeys[gi], r.status === "fulfilled" ? r.value : null);
+      }
+
+      const dedupedPlans = deduplicateGraphPlans(plans, graphMap);
+
+      let tripleIdx = 0;
+      for (const plan of dedupedPlans) {
+        item.claims.push(processClaimPlan(plan, graphMap, i, tripleIdx, nested, existingNestedKeys, derivedTriples));
+        tripleIdx++;
+      }
     }
 
     enforceRoles(item.claims, selectedSentence);
