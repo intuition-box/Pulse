@@ -117,7 +117,10 @@ export function ProtocolDetails({
     return (tripleCost + minDeposit) * BigInt(totalNewClaims);
   })();
 
-  const existingCost = costReady && minDeposit ? minDeposit * BigInt(existingTripleCount) : null;
+  const existingMainTripleCount = directMainProposalIds
+    ? tripleSummary.existingTriples.filter((t) => directMainProposalIds.has(t.proposal.id)).length
+    : tripleSummary.existingTriples.length;
+  const existingCost = costReady && minDeposit ? minDeposit * BigInt(existingMainTripleCount) : null;
 
   const summaryLabel = approvedTripleStatus === "checking"
     ? "Resolving\u2026"
@@ -291,32 +294,27 @@ export function ProtocolDetails({
             </details>
           )}
 
-          {existingCost !== null && existingTripleCount > 0 && (() => {
-            const existingMainTriples = directMainProposalIds
-              ? tripleSummary.existingTriples.filter((t) => directMainProposalIds.has(t.proposal.id))
-              : tripleSummary.existingTriples;
-            return (
-              <details className={styles.pdFeeLine}>
-                <summary className={styles.pdFeeLineSummary}>
-                  Existing claims ({existingTripleCount})
-                  <em className={styles.pdFeeValue}>{formatCost(existingCost)} {currencySymbol}</em>
-                </summary>
-                <ul className={styles.pdFeeDetail}>
-                  {existingMainTriples.map((t, i) => (
-                    <li key={i}>
-                      <TripleInline
-                        subject={safeDisplayLabel(t.proposal.subjectMatchedLabel, t.proposal.sText)}
-                        predicate={safeDisplayLabel(t.proposal.predicateMatchedLabel, t.proposal.pText)}
-                        object={safeDisplayLabel(t.proposal.objectMatchedLabel, t.proposal.oText)}
-                        nested
-                        wrap
-                      />
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            );
-          })()}
+          {existingTripleCount > 0 && (
+            <details className={styles.pdFeeLine}>
+              <summary className={styles.pdFeeLineSummary}>
+                Existing claims ({existingTripleCount})
+                <em className={styles.pdFeeValue}>{existingCost !== null && existingCost > 0n ? formatCost(existingCost) : "0"} {currencySymbol}</em>
+              </summary>
+              <ul className={styles.pdFeeDetail}>
+                {tripleSummary.existingTriples.map((t, i) => (
+                  <li key={i}>
+                    <TripleInline
+                      subject={safeDisplayLabel(t.proposal.subjectMatchedLabel, t.proposal.sText)}
+                      predicate={safeDisplayLabel(t.proposal.predicateMatchedLabel, t.proposal.pText)}
+                      object={safeDisplayLabel(t.proposal.objectMatchedLabel, t.proposal.oText)}
+                      nested
+                      wrap
+                    />
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
 
           <div className={styles.pdFeeLineStatic}>
             {labels.gasFees}

@@ -1,6 +1,7 @@
 import type { NestedEdge, TermRef } from "../core.js";
 import type { DerivedTriple, FlatTriple, ClaimAtomMatches, ClaimNode, ClaimTreePlan, TreeProcessResult } from "../types.js";
-import type { ClaimPlan, GraphResult } from "./claimPlanner.js";
+import type { ClaimPlan, GraphResult, RecursiveSlot } from "./claimPlanner.js";
+import { flattenSlot } from "./llmAdapters.js";
 import { tryDecomposeSubject, tryExtractSubProposition, isReportingVerb } from "./parse.js";
 import { tripleKeyed, termAtom, termTriple, pushEdge, pushModifierEdges } from "./termRef.js";
 import { checkReflexive } from "./validate.js";
@@ -520,6 +521,8 @@ function stemSet(tokens: string[]): Set<string> {
   return s;
 }
 
+const PRONOUN_SET = new Set(["it", "its", "this", "that", "they", "them", "their", "these", "those", "he", "she", "we"]);
+
 export function validateLeafMeaning(
   leafText: string,
   graph: GraphResult,
@@ -527,13 +530,28 @@ export function validateLeafMeaning(
   const srcTokens = tokenize(leafText);
   if (srcTokens.length === 0) return false;
 
+  const modifierText = (graph.modifiers ?? []).map((m) => `${m.prep} ${m.value}`).join(" ");
   const tripleTokens = tokenize(
-    `${graph.core.subject} ${graph.core.predicate} ${graph.core.object}`,
+    `${graph.core.subject} ${graph.core.predicate} ${graph.core.object} ${modifierText}`,
   );
   if (tripleTokens.length === 0) return false;
 
   const srcStems = stemSet(srcTokens);
-  const missing = tripleTokens.filter((t) => !srcStems.has(t) && !srcStems.has(stem(t)));
+
+  // Allow pronoun resolution: when the source has pronouns (e.g. "it"),
+  // exempt resolved subject tokens from missing count (capped at pronoun count)
+  const pronounCount = srcTokens.filter((t) => PRONOUN_SET.has(t)).length;
+  const subjectTokens = pronounCount > 0 ? new Set(tokenize(graph.core.subject).map((t) => t.toLowerCase())) : null;
+  let pronounExemptions = 0;
+
+  const missing = tripleTokens.filter((t) => {
+    if (srcStems.has(t) || srcStems.has(stem(t))) return false;
+    if (subjectTokens && pronounExemptions < pronounCount && subjectTokens.has(t.toLowerCase())) {
+      pronounExemptions++;
+      return false;
+    }
+    return true;
+  });
   if (missing.length > LEAF_MEANING_MAX_MISSING) return false;
   if (
     srcTokens.length <= 3 &&
@@ -547,6 +565,62 @@ export function validateLeafMeaning(
   if (overlap / srcTokens.length < LEAF_MEANING_MIN_OVERLAP) return false;
 
   return true;
+}
+
+type ExtraClaim = { claim: string; triple: FlatTriple & { stableKey: string } };
+
+/** Filter out modifiers whose "prep value" already appears inside a recursive slot. */
+function filterSlotLocalModifiers(
+  graph: GraphResult,
+): Array<{ prep: string; value: string }> {
+  if (!graph.modifiers?.length) return graph.modifiers ?? [];
+  if (!graph.recursiveSubject && !graph.recursiveObject) return graph.modifiers;
+
+  const flatSubj = graph.recursiveSubject ? flattenSlot(graph.recursiveSubject).toLowerCase() : "";
+  const flatObj = graph.recursiveObject ? flattenSlot(graph.recursiveObject).toLowerCase() : "";
+
+  return graph.modifiers.filter((mod) => {
+    const modPhrase = `${mod.prep} ${mod.value}`.toLowerCase();
+    if (flatSubj.includes(modPhrase) || flatObj.includes(modPhrase)) return false;
+    return true;
+  });
+}
+
+function buildTermRefFromSlot(
+  slot: RecursiveSlot,
+  groupKey: string,
+  localNested: NestedEdge[],
+  localNestedKeys: Set<string>,
+  extraClaims: ExtraClaim[],
+): TermRef {
+  if (typeof slot === "string") return termAtom(slot);
+
+  const subjRef = buildTermRefFromSlot(slot.subject, groupKey, localNested, localNestedKeys, extraClaims);
+  const objRef = buildTermRefFromSlot(slot.object, groupKey, localNested, localNestedKeys, extraClaims);
+
+  const flatSubj = flattenSlot(slot.subject);
+  const flatObj = flattenSlot(slot.object);
+  const subKeyed = tripleKeyed({ subject: flatSubj, predicate: slot.predicate, object: flatObj });
+
+  if (!checkReflexive(subKeyed).valid || isDuplicateSubjectObject(subKeyed)) {
+    return termAtom(`${flatSubj} ${slot.predicate} ${flatObj}`);
+  }
+
+  // Leaf sub-triple: both children are atoms (supporting))
+  if (subjRef.type === "atom" && objRef.type === "atom") {
+    extraClaims.push({ claim: `${flatSubj} ${slot.predicate} ${flatObj}`, triple: subKeyed });
+    return termTriple(subKeyed);
+  }
+
+  // Non-leaf: at least one child is a triple ref (nested edge)
+  const edgeKey = pushEdge(localNested, localNestedKeys, {
+    kind: "modifier",
+    origin: "agent",
+    predicate: slot.predicate,
+    subject: subjRef,
+    object: objRef,
+  });
+  return { type: "triple", tripleKey: edgeKey };
 }
 
 function processNodeRec(
@@ -588,6 +662,49 @@ function processNodeRec(
       if (!validateLeafMeaning(node.text, graph)) {
         trackFallback("processClaimTree:leafMeaningFail");
         return { ref: termAtom(node.text), stableKey: null, anchorTriple: null, graphable: false };
+      }
+
+      // Recursive slots = ROOT NestedEdge + leaf sub-triples as extraClaims
+      if (graph.recursiveSubject || graph.recursiveObject) {
+        const extraClaims: ExtraClaim[] = [];
+
+        const subjRef = graph.recursiveSubject
+          ? buildTermRefFromSlot(graph.recursiveSubject, groupKey, localNested, localNestedKeys, extraClaims)
+          : termAtom(graph.core.subject);
+        const objRef = graph.recursiveObject
+          ? buildTermRefFromSlot(graph.recursiveObject, groupKey, localNested, localNestedKeys, extraClaims)
+          : termAtom(graph.core.object);
+
+        const rootEdgeKey = pushEdge(localNested, localNestedKeys, {
+          kind: "modifier",
+          origin: "agent",
+          predicate: graph.core.predicate,
+          subject: subjRef,
+          object: objRef,
+        });
+
+        // Filter modifiers already captured in recursive slots (safety net)
+        const filteredModifiers = filterSlotLocalModifiers(graph);
+        const filteredGraph = filteredModifiers.length !== (graph.modifiers?.length ?? 0)
+          ? { ...graph, modifiers: filteredModifiers }
+          : graph;
+
+        const rootAsKeyed = { ...keyed, stableKey: rootEdgeKey };
+        const outerModKey = applyGraphPostProcessing(
+          filteredGraph, rootAsKeyed, node.text, groupKey,
+          localNested, localNestedKeys, derivedTriples,
+          { includeSubjectDecomp: false },
+        );
+
+        const anchor = extraClaims[0]?.triple ?? keyed;
+
+        return {
+          ref: { type: "triple", tripleKey: outerModKey ?? rootEdgeKey },
+          stableKey: outerModKey ?? rootEdgeKey,
+          anchorTriple: anchor,
+          graphable: true,
+          extraClaims,
+        };
       }
 
       const propWrap = tryPropositionalWrap(
@@ -774,7 +891,7 @@ export function processClaimTree(
   nested: NestedEdge[],
   existingNestedKeys: Set<string>,
   derivedTriples: DerivedTriple[],
-): ClaimResult {
+): ClaimResult[] {
   const groupKey = `${segmentIndex}:${plan.group}`;
 
   const localNested: NestedEdge[] = [];
@@ -806,24 +923,42 @@ export function processClaimTree(
       }
     }
 
-    return {
+    const outermostMainKey = result.stableKey !== result.anchorTriple.stableKey ? result.stableKey : null;
+
+    const results: ClaimResult[] = [{
       index: tripleIdx,
       claim: plan.claim,
       role: plan.role,
       group: plan.group,
       triple: result.anchorTriple,
-      outermostMainKey: result.stableKey !== result.anchorTriple.stableKey ? result.stableKey : null,
+      outermostMainKey,
+    }];
 
-    };
+    // Add leaf sub-triples as SUPPORTING claims (skip anchor — already in results[0])
+    if (result.extraClaims?.length) {
+      for (const ec of result.extraClaims) {
+        if (ec.triple.stableKey === result.anchorTriple!.stableKey) continue;
+        results.push({
+          index: tripleIdx + results.length,
+          claim: ec.claim,
+          role: "SUPPORTING",
+          group: plan.group,
+          triple: ec.triple,
+          outermostMainKey,
+        });
+      }
+    }
+
+    return results;
   }
 
   // All leaves failed → null result, edges are NOT committed (orphan purge)
-  return {
+  return [{
     index: tripleIdx,
     claim: plan.claim,
     role: plan.role,
     group: plan.group,
     triple: null,
     outermostMainKey: null,
-  };
+  }];
 }

@@ -16,6 +16,8 @@ import { buildClaimPlans, type GraphResult } from "./helpers/claimPlanner.js";
 import { processClaimPlan, processClaimTree } from "./helpers/claimProcessor.js";
 import { canonicalizePreGraph, deduplicateGraphPlans, deduplicateGraphTreePlans, enforceRoles } from "./helpers/canonicalization.js";
 import { parseMetaClaim } from "./helpers/parse.js";
+import { tripleKeyed } from "./helpers/termRef.js";
+import { checkReflexive } from "./helpers/validate.js";
 import { buildClaimTreePlans } from "./helpers/claimTree.js";
 
 import { selectAndDecompose, type DecomposeDeps, graphFromClaim, type GraphDeps } from "./helpers/llmAdapters.js";
@@ -280,8 +282,9 @@ export async function runExtraction(inputText: string, options: ExtractionOption
 
       let tripleIdx = 0;
       for (const plan of dedupedPlans) {
-        item.claims.push(processClaimTree(plan, graphMap, i, tripleIdx, nested, existingNestedKeys, derivedTriples));
-        tripleIdx++;
+        const results = processClaimTree(plan, graphMap, i, tripleIdx, nested, existingNestedKeys, derivedTriples);
+        item.claims.push(...results);
+        tripleIdx += results.length;
       }
     } else {
       const { plans, graphJobs } = buildClaimPlans(canonicalized, sentenceContext, graphFromClaimFn);
@@ -365,6 +368,24 @@ export async function runExtraction(inputText: string, options: ExtractionOption
         detail: `Filtered by parent-check (duplicate: ${parentFilterStats.droppedDuplicate}, unrelated: ${parentFilterStats.droppedUnrelated}).`,
       },
     };
+  }
+
+  if (totalClaims === 0 && dropReasons.length === 0
+    && !parentFilterStats.droppedDuplicate && !parentFilterStats.droppedUnrelated) {
+    try {
+      llmCallCount++;
+      const fallbackGraph = await graphFromClaim(inputText.trim(), "", graphDeps);
+      if (fallbackGraph) {
+        const fbKeyed = tripleKeyed(fallbackGraph.core);
+        if (checkReflexive(fbKeyed).valid) {
+          perSegment.push({
+            headerPath: [], sentence: inputText, selectedSentence: inputText,
+            claims: [{ index: 0, claim: inputText.trim(), role: "MAIN", group: 0, triple: fbKeyed }],
+          });
+          return { perSegment, nested, derivedTriples, llmCallCount };
+        }
+      }
+    } catch {}
   }
 
   if (totalClaims === 0) {

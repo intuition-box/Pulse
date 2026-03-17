@@ -144,4 +144,5 @@ export type TreeProcessResult = {
   stableKey: string | null;
   anchorTriple: (FlatTriple & { stableKey: string }) | null;
   graphable: boolean;
+  extraClaims?: Array<{ claim: string; triple: FlatTriple & { stableKey: string } }>;
 };

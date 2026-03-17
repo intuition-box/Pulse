@@ -40,10 +40,10 @@ Rules:
 Be lenient: if in doubt, return OK. False negatives (letting something through) are cheaper than false positives (blocking valid text).
 
 ARGUMENT MARKERS — if the text contains ANY of these, it is ALWAYS OK (never NOT_DEBATABLE):
-- Causal: because, since (non-temporal), therefore, thus, hence, consequently
-- Conditional: if, unless, when, only when, as long as, provided that
+- Causal: because, since (non-temporal), therefore, thus, hence, consequently, so that, in order to
+- Conditional: if, unless, when, only when, as long as, provided that, even though
 - Normative: should, must, ought to, need to
-- Contrast: but, however, although, yet, nevertheless
+- Contrast: but, however, although, yet, nevertheless, despite, whereas
 - Evidence: the data shows, studies show, research suggests, evidence indicates
 These markers signal an argument structure → always proceed.
 

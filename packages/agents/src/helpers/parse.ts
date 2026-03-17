@@ -102,6 +102,13 @@ export function parseConditional(text: string): Conditional | null {
     return { kw, condText: m[2].trim(), mainText: m[3].trim() };
   }
 
+  m = s.match(/^(If|Unless|When)\s+(.+?)\s+then\s+(.+)$/i);
+  if (m) {
+    const kw = parseConditionalKeyword(m[1]);
+    if (!kw) return null;
+    return { kw, condText: m[2].trim(), mainText: m[3].trim() };
+  }
+
   m = s.match(/^(.+?)\s+(if|unless|when)\s+(.+)$/i);
   if (m) {
     const kw = parseConditionalKeyword(m[2]);

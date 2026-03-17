@@ -1,6 +1,6 @@
 import type { LanguageModel } from "ai";
 import type { DecomposedClaim } from "../types.js";
-import type { GraphResult } from "./claimPlanner.js";
+import type { GraphResult, RecursiveSlot } from "./claimPlanner.js";
 import { safeTrim, normalizeForCompare } from "./text.js";
 
 import { retryWithBackoff, isLlmUnavailable } from "../utils/concurrency.js";
@@ -45,9 +45,14 @@ export async function selectAndDecompose(
 }
 
 export type GraphDeps = {
-  runGraphExtraction: (model: LanguageModel, payload: string) => Promise<{ core: { subject: string; predicate: string; object: string }; modifiers: Array<{ prep: string; value: string }> }>;
+  runGraphExtraction: (model: LanguageModel, payload: string) => Promise<{ core: { subject: RecursiveSlot; predicate: string; object: RecursiveSlot }; modifiers: Array<{ prep: string; value: string }> }>;
   getGroqModel: () => LanguageModel;
 };
+
+export function flattenSlot(slot: RecursiveSlot): string {
+  if (typeof slot === "string") return slot;
+  return `${flattenSlot(slot.subject)} ${slot.predicate} ${flattenSlot(slot.object)}`;
+}
 
 const MODAL_MAIN_RE = /^(.+?)\s+(should|must|can|could|would|will|may|might|need to|ought to)\s+(.+)$/i;
 
@@ -109,10 +114,12 @@ export async function graphFromClaim(claimText: string, sentenceContext: string,
     const parsed = await retryWithBackoff(() => deps.runGraphExtraction(deps.getGroqModel(), payload));
 
     const c = parsed.core;
-    if (!c.subject?.trim() || !c.predicate?.trim() || !c.object?.trim()) return null;
+    const flatSubject = flattenSlot(c.subject).trim();
+    const flatObject = flattenSlot(c.object).trim();
+    if (!flatSubject || !c.predicate?.trim() || !flatObject) return null;
     if (PREP_ONLY_RE.test(c.predicate.trim().toLowerCase())) return null;
 
-    const rawCore = { subject: c.subject.trim(), predicate: c.predicate.trim(), object: c.object.trim() };
+    const rawCore = { subject: flatSubject, predicate: c.predicate.trim(), object: flatObject };
     const fixedCore = fixCompoundPredicate(rawCore);
     const normalizedCore = normalizeCoreWithClaimText(fixedCore, claimText);
     const rawModifiers = parsed.modifiers
@@ -121,7 +128,12 @@ export async function graphFromClaim(claimText: string, sentenceContext: string,
 
     const allModifiers = rawModifiers.filter((m) => !isRedundantModifier(m, normalizedCore));
 
-    return { core: normalizedCore, modifiers: allModifiers };
+    return {
+      core: normalizedCore,
+      modifiers: allModifiers,
+      recursiveSubject: typeof c.subject !== "string" ? c.subject : undefined,
+      recursiveObject: typeof c.object !== "string" ? c.object : undefined,
+    };
   } catch (err) {
     console.error("[graphFromClaim] LLM error:", err);
     if (isLlmUnavailable(err)) throw err;

@@ -1,9 +1,12 @@
 import type { Causal, Conditional, DecomposedClaim, FlatTriple } from "../types.js";
 import { parseMetaClaim, parseConditional, parseCausal } from "./parse.js";
+export type RecursiveSlot = string | { subject: RecursiveSlot; predicate: string; object: RecursiveSlot };
 
 export type GraphResult = {
   core: FlatTriple;
   modifiers: Array<{ prep: string; value: string }>;
+  recursiveSubject?: RecursiveSlot;
+  recursiveObject?: RecursiveSlot;
 };
 
 export type ClaimPlanKind = "meta" | "conditional" | "causal" | "standard";

@@ -251,7 +251,7 @@ export function usePreviewModel(inputs: PreviewModelInputs): PreviewModel {
 
   const existingDirectMainCount = tripleSummary.existingTriples
     .filter((t) => directMainProposalIds.has(t.proposal.id)).length;
-  const existingTripleCount = existingDirectMainCount;
+  const existingTripleCount = tripleSummary.existingTriples.length;
 
   const newDirectMainCount = tripleSummary.newTriples
     .filter((t) => directMainProposalIds.has(t.proposal.id)).length;

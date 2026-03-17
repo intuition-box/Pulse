@@ -1,16 +1,12 @@
 import { normalize, tokenSimilarity } from "../utils/similarity.js";
-import {
-  applyCausalPreProcessing,
-} from "./claimTransforms.js";
 import { ensurePeriod } from "./text.js";
-import { looksLikeProposition, parseCausal } from "./parse.js";
+import { parseCausal } from "./parse.js";
 import { trackFallback } from "./fallbackTracker.js";
 import { shouldSplitOnAnd } from "./andSplitClassifier.js";
 import {
   CLAIM_DEDUP_THRESHOLD,
   TRIPLE_DEDUP_THRESHOLD,
   REPLY_PARENT_MATCH_THRESHOLD,
-  RELATIVE_CLAUSE_RE,
   COMPOUND_CONDITIONAL_KW,
 } from "./rules/extractionRules.js";
 import type { DecomposedClaim, FlatTriple, ClaimNode, ClaimTreePlan } from "../types.js";
@@ -84,25 +80,6 @@ function extractMainSubject(text: string): string | null {
   return m?.[1]?.trim() || null;
 }
 
-function trimRelativeClauseTail(claim: DecomposedClaim): DecomposedClaim {
-  if (claim.role !== "MAIN") return claim;
-
-  const text = claim.text.trim();
-  const marker = RELATIVE_CLAUSE_RE.exec(text);
-  if (!marker || marker.index <= 0) return claim;
-
-  const matched = marker[0];
-  if (matched.length > 1 && matched === matched.toUpperCase()) return claim;
-
-  const before = text.slice(0, marker.index).trim().replace(/[,;:]\s*$/, "");
-  if (!before) return claim;
-
-  if (!looksLikeProposition(before)) return claim;
-
-  trackFallback("trimRelativeClauseTail");
-  return { ...claim, text: ensurePeriod(before) };
-}
-
 function projectReplyCausalToReasons(
   claims: DecomposedClaim[],
   parentClaimText?: string | null,
@@ -165,11 +142,9 @@ export function canonicalizePreGraph(
   options: CanonicalizePreGraphOptions = {},
 ): DecomposedClaim[] {
   const afterDedup = deduplicateClaimsStructured(claims);
-  const afterCausal = applyCausalPreProcessing(afterDedup);
-  const afterAndSplit = splitCompoundAndClaims(afterCausal);
+  const afterAndSplit = splitCompoundAndClaims(afterDedup);
   const afterReplyProjection = projectReplyCausalToReasons(afterAndSplit, options.parentClaimText);
-  const afterRelativeTrim = afterReplyProjection.map(trimRelativeClauseTail);
-  return deduplicateClaimsStructured(afterRelativeTrim);
+  return deduplicateClaimsStructured(afterReplyProjection);
 }
 
 export function deduplicateGraphPlans(

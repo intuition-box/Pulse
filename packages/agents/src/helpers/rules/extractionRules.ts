@@ -84,7 +84,7 @@ export const CONDITION_RE = /\b(if|unless|when|only\s+when|only\s+if|as long as|
 
 export const PREP_ONLY_RE = /^(in|of|for|to|by|with|at|on|from|about|through|under|over|between)$/i;
 
-export const STRONG_ARGUMENT_MARKERS_RE = /\b(because|since|therefore|if|unless|when|should|must|ought|however|but)\b/i;
+export const STRONG_ARGUMENT_MARKERS_RE = /\b(because|since|therefore|if|unless|when|should|must|ought|however|but|although|yet|thus|hence|so\s+that|despite|whereas|even\s+though|nevertheless|consequently|in\s+order\s+to)\b/i;
 
 export const CAUSAL_COVERAGE_THRESHOLD = 0.8;
 

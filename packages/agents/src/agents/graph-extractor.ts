@@ -1,13 +1,28 @@
 import { generateObject } from "ai";
 import type { LanguageModel } from "ai";
 import { z } from "zod";
+import type { RecursiveSlot } from "../helpers/claimPlanner.js";
 
+const LeafTriple = z.object({
+  subject: z.string().min(1),
+  predicate: z.string().min(1),
+  object: z.string().min(1),
+});
+
+const AtomOrTriple = z.union([
+  z.string().min(1),
+  z.object({
+    subject: z.union([z.string().min(1), LeafTriple]),
+    predicate: z.string().min(1),
+    object: z.union([z.string().min(1), LeafTriple]),
+  }),
+]) as z.ZodType<RecursiveSlot>;
 
 export const GraphOutSchema = z.object({
   core: z.object({
-    subject: z.string().min(1),
+    subject: AtomOrTriple,
     predicate: z.string().min(1),
-    object: z.string().min(1),
+    object: AtomOrTriple,
   }),
   modifiers: z
     .array(
@@ -29,7 +44,14 @@ Input JSON:
 { "claim": "...", "sentence_context": "..." }
 
 Output EXACTLY:
-{ "core": { "subject":"...", "predicate":"...", "object":"..." }, "modifiers": [...] }
+{
+  "core": {
+    "subject": "..." or { "subject": ..., "predicate": "...", "object": ... },
+    "predicate": "...",
+    "object": "..." or { "subject": ..., "predicate": "...", "object": ... }
+  },
+  "modifiers": [...]
+}
 
 RULE PRIORITY (when rules conflict):
 1. Faithfulness — preserve the original meaning, tense, modality, and negation exactly.
@@ -52,16 +74,45 @@ CORE TRIPLE:
   so the object is a reusable atom. Only split into a modifier when the prep phrase is truly
   optional context (time, place, quantity).
 - NEVER duplicate: if a prep is folded into the predicate, do NOT also emit it as a modifier.
-- Do NOT output a bare preposition as predicate (for/in/of/to/by/with).
+- Do NOT output a bare preposition as the CORE predicate (for/in/of/to/by/with).
+  Bare prepositions ARE allowed as predicates inside nested sub-triples.
+
+RECURSIVE SUBJECT/OBJECT:
+- When the subject or object contains a RESTRICTIVE clause that narrows WHO/WHAT
+  is being talked about, express it as a nested triple instead of a flat string.
+- Use nested triples for:
+  * Relative clauses: "People who rely on AI" -> { "subject": "People", "predicate": "who rely on", "object": "AI" }
+  * Participial phrases: "Students using ChatGPT" -> { "subject": "Students", "predicate": "using", "object": "ChatGPT" }
+  * Prepositional noun phrases (in/on/for/from/with/of/about/…):
+    "cheap labor in developing countries" -> { "subject": "cheap labor", "predicate": "in", "object": "developing countries" }
+    Exception: proper nouns and fixed terms stay flat (see ATOM REUSABILITY).
+  * Prepositional subjects: "People who rely on AI for everyday decisions" ->
+    { "subject": { "subject": "People", "predicate": "who rely on", "object": "AI" }, "predicate": "for", "object": "everyday decisions" }
+- Use flat strings for simple atoms (1-4 words with no internal proposition).
+- Predicate is ALWAYS a flat string (never nested).
+- Usually 1-2 levels are sufficient. Nest deeper only when meaning requires it.
+- MODIFIER SCOPE: When a prepositional phrase modifies a nested subject or object
+  (not the main verb), absorb it INTO that slot's recursive triple.
+  Root modifiers should ONLY modify the core predicate (time, place, manner of the main action).
+  Test: "does this phrase modify the MAIN VERB or something inside a nested slot?"
+  "gradually lose the ability to think critically on their own"
+  → "on their own" modifies "think critically" (inside the object), NOT "gradually lose".
+  Correct: object = { "subject": { "subject": "the ability", "predicate": "to think", "object": "critically" },
+                       "predicate": "on", "object": "their own" }
+  Wrong: modifiers: [{ "prep": "on", "value": "their own" }]
 
 ATOM REUSABILITY:
-- STRICT: subject and object MUST be 1-4 words. If 5+ words, ALWAYS split the
-  prepositional phrase into a modifier. Exception: proper nouns and fixed terms
+- DEFAULT: subject and object should be 1-4 words for reusability.
+- EXCEPTION: When a subject/object contains a restrictive clause (who/which/that + verb,
+  present participle, "of"), use the nested triple format instead of truncating.
+  NEVER truncate a subject/object if doing so changes WHO/WHAT the claim is about.
+- If subject or object contains a prepositional phrase, prefer nesting it as a recursive
+  sub-triple (see RECURSIVE SUBJECT/OBJECT). Only extract as a root modifier when the
+  phrase modifies the core predicate (time, place, manner of the main action).
+  Exception: proper nouns and fixed terms
   that cannot be decomposed (e.g. "United States of America", "freedom of speech").
   Exception: quantified "of" (millions of, thousands of, most of, some of, dozens of)
   and attributive "of" (quality of life, cost of living, burden of proof) stay as one atom.
-- If subject or object contains a preposition (of/for/in/to/from/with/about/on/by/through),
-  extract the prepositional phrase as a modifier and keep only the head noun phrase.
 - Prefer common nouns/noun phrases that others would independently use as atoms.
 
 DENOMINALIZATION:
@@ -100,15 +151,6 @@ WEAK OBJECTS — NEVER use these as the object:
 - "it", "this", "that", "things", "something", "everything", "them", "people"
 - If the grammatical object is a pronoun, resolve it from context or use the verb's complement.
 
-RELATIVE CLAUSES / PROPOSITIONS IN OBJECT:
-- When the object contains a relative clause (who/which/that + verb), ALWAYS split:
-  keep only the head noun as object, and extract the relative clause as a modifier.
-  "citizens who are educated" → object "citizens", modifier { "prep": "who are", "value": "educated" }
-  "policies that reduce emissions" → object "policies", modifier { "prep": "that reduce", "value": "emissions" }
-  "a system which rewards innovation" → object "a system", modifier { "prep": "which rewards", "value": "innovation" }
-- This rule applies ONLY to relative clause markers (who, which, that + verb).
-  Other prepositions (in, for, with, by) follow normal modifier rules.
-
 ATTRIBUTION HINT:
 - When the input contains a reporting verb (say, report, argue, claim, believe, etc.),
   PREFER extracting the inner proposition as the core triple.
@@ -128,6 +170,9 @@ MODIFIERS:
   The value is the verb's complement only (a reusable atom, not a verb phrase).
 - Modifier values follow the same atom reusability rules as subject/object (1-4 words).
   If a value contains a preposition, split into separate modifiers.
+- Multi-word temporal markers ("long before", "shortly after", "even before") stay as ONE prep.
+  "Social media destroyed attention spans long before AI existed."
+  => modifier { "prep": "long before", "value": "AI existed" }
 - Only extract modifiers EXPLICIT in the claim. Do not invent.
 - If no modifiers, output empty array.
 
@@ -207,6 +252,36 @@ Claim: "Social media amplifies misinformation fast enough to undermine democrati
 => { "core": { "subject": "Social media", "predicate": "amplifies", "object": "misinformation" },
      "modifiers": [{ "prep": "fast enough to undermine", "value": "democratic elections" }] }
 
+--- RECURSIVE SUBJECT (restrictive clause -> nested triple) ---
+
+Claim: "People who rely on AI for everyday decisions gradually lose the ability to think critically on their own."
+=> { "core": {
+       "subject": { "subject": { "subject": "People", "predicate": "who rely on", "object": "AI" },
+                    "predicate": "for", "object": "everyday decisions" },
+       "predicate": "gradually lose",
+       "object": { "subject": { "subject": "the ability", "predicate": "to think", "object": "critically" },
+                    "predicate": "on", "object": "their own" }
+     },
+     "modifiers": [] }
+
+Claim: "Students using ChatGPT for homework never develop real analytical skills."
+=> { "core": {
+       "subject": { "subject": "Students", "predicate": "using", "object": "ChatGPT" },
+       "predicate": "never develop",
+       "object": "real analytical skills"
+     },
+     "modifiers": [{ "prep": "for", "value": "homework" }] }
+
+--- RECURSIVE BOTH SIDES ---
+
+Claim: "The sweetness of pineapple balances the saltiness of ham and cheese."
+=> { "core": {
+       "subject": { "subject": "sweetness", "predicate": "of", "object": "pineapple" },
+       "predicate": "balances",
+       "object": { "subject": "saltiness", "predicate": "of", "object": "ham and cheese" }
+     },
+     "modifiers": [] }
+
 --- NOISY INPUT ---
 
 Claim: "ai is gonna take our jobs lol"
@@ -220,7 +295,6 @@ export async function runGraphExtraction(model: LanguageModel, prompt: string) {
     schema: GraphOutSchema,
     system: GRAPH_SYSTEM,
     prompt,
-    providerOptions: { groq: { structuredOutputs: true } },
   });
   return object;
 }
