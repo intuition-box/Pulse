@@ -3,6 +3,7 @@ import { labels } from "@/lib/vocabulary";
 
 import {
   type ApprovedProposalWithRole,
+  type DerivedTripleDraft,
   type DraftPost,
   type MainRef,
   type NestedProposalDraft,
@@ -20,6 +21,7 @@ export type PostCardProps = {
   nestedEdges: NestedProposalDraft[];
   allNestedProposals: NestedProposalDraft[];
   nestedRefLabels: Map<string, string>;
+  derivedTriples?: DerivedTripleDraft[];
   mainRef: MainRef | null;
   stanceRequired: boolean;
   onHover: (terms: HoverTerms | null) => void;
@@ -34,6 +36,7 @@ export function PostCard({
   nestedEdges,
   allNestedProposals,
   nestedRefLabels,
+  derivedTriples,
   mainRef,
   stanceRequired,
   onHover,
@@ -130,7 +133,7 @@ export function PostCard({
         <p className={cardStyles.bodyMuted}>No body</p>
       )}
 
-      {mainRef && (
+      {mainRef && mainRef.type !== "error" && (
         <div className={cardStyles.actions}>
           <ProtocolBadge />
           <StructuredTripleInline
@@ -138,6 +141,7 @@ export function PostCard({
             proposals={proposals}
             nestedProposals={allNestedProposals}
             nestedRefLabels={nestedRefLabels}
+            derivedTriples={derivedTriples}
             wrap
           />
         </div>

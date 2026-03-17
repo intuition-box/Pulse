@@ -198,6 +198,7 @@ export function useProposalCrud({
         sentenceText: "",
         groupKey: "0:0",
         outermostMainKey: null,
+
         status: "pending" as ProposalStatus,
         saved: { ...empty },
       },
@@ -253,6 +254,7 @@ export function useProposalCrud({
         sentenceText: `${sText} ${pText} ${oText}`,
         groupKey: "0:0",
         outermostMainKey: null,
+
         status: "approved" as ProposalStatus,
         saved: { sText, pText, oText, subjectAtomId: null, predicateAtomId: null, objectAtomId: null },
       },
@@ -370,6 +372,7 @@ export function useProposalCrud({
                   sentenceText: "",
                   groupKey: item.groupKey ?? "0:0",
                   outermostMainKey: null,
+          
                   saved: {
                     sText,
                     pText,

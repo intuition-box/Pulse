@@ -67,7 +67,7 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
 
   const {
     draftPosts, setDraftPosts, initializeDrafts, allDraftsHaveMain,
-    splitDrafts, mergeToDraft,
+    splitDrafts,
     updateDraftStance, updateDraftBody, resetDraftBody, removeDraft,
   } = useDraftPosts(proposals);
 
@@ -85,6 +85,18 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
     [proposals, nestedProposals, derivedTriples],
   );
 
+  const allDraftsHaveValidMain = useMemo(() => {
+    if (!allDraftsHaveMain) return false;
+    return draftPosts.every((draft) => {
+      const active = proposals.filter(
+        (p) => draft.proposalIds.includes(p.id) && p.status !== "rejected",
+      );
+      if (active.length === 0) return true;
+      const ref = mainRefByDraft.get(draft.id);
+      return ref !== null && ref !== undefined && ref.type !== "error";
+    });
+  }, [allDraftsHaveMain, draftPosts, proposals, mainRefByDraft]);
+
   const approvedEntries = useMemo(
     () =>
       draftPosts.flatMap((draft) => {
@@ -93,7 +105,7 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
           .filter((id) => proposals.find((p) => p.id === id)?.status === "approved")
           .map((id) => ({
             proposalId: id,
-            role: (mainRef?.type === "nested"
+            role: (mainRef?.type === "nested" || mainRef?.type === "error"
               ? "SUPPORTING"
               : id === draft.mainProposalId ? "MAIN" : "SUPPORTING") as TripleRole,
           }));
@@ -133,18 +145,7 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
     });
   }, [proposals, nestedProposals, derivedTriples]);
 
-  const displayNestedProposals = useMemo(() => {
-    const activeStableKeys = new Set([
-      ...proposals.filter((p) => p.status !== "rejected").map((p) => p.stableKey).filter(Boolean),
-      ...nestedProposals.filter((e) => e.status !== "rejected").map((e) => e.stableKey).filter(Boolean),
-      ...derivedTriples.map((d) => d.stableKey).filter(Boolean),
-    ]);
-    return nestedProposals.filter((edge) => {
-      const subjectOk = edge.subject.type !== "triple" || activeStableKeys.has(edge.subject.tripleKey);
-      const objectOk = edge.object.type !== "triple" || activeStableKeys.has(edge.object.tripleKey);
-      return subjectOk && objectOk;
-    });
-  }, [proposals, nestedProposals, derivedTriples]);
+  const displayNestedProposals = visibleNestedProposals;
 
   const updateNestedPredicate = useCallback((nestedId: string, label: string) => {
     setNestedProposals((prev) =>
@@ -332,7 +333,7 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
     extractionJob,
     approvedProposals,
     draftPosts,
-    allDraftsHaveMain,
+    allDraftsHaveMain: allDraftsHaveValidMain,
     contextDirty,
     minDeposit: resolution.minDeposit,
     setMessage,
@@ -347,7 +348,7 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
     themeAtomTermId: themeAtomTermId ?? null,
     mainRefByDraft,
     derivedTriples,
-    parentClaim,
+    nestedRefLabels,
   });
 
   const busy = isExtracting || publish.isPublishing;
@@ -367,7 +368,6 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
 
   const draftActions: DraftActions = {
     onSplit: () => splitDrafts(normalizedStance),
-    onMerge: () => mergeToDraft(normalizedStance, normalizedInput),
     onStanceChange: updateDraftStance,
     onBodyChange: updateDraftBody,
     onBodyReset: resetDraftBody,
@@ -412,6 +412,7 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
     approvedTripleStatusError: resolution.approvedTripleStatusError,
     semanticSkipped: resolution.semanticSkipped,
     resolvedAtomMap: resolution.resolvedAtomMap,
+    retryTripleCheck: resolution.retryCheck,
     publishedPosts,
     isPublishing: publish.isPublishing,
     publishStep: publish.publishStep,

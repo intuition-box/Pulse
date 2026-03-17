@@ -6,6 +6,7 @@ import tripleStyles from "@/components/TripleInline/TripleInline.module.css";
 import {
   resolveNestedRefLabel,
   safeDisplayLabel,
+  type DerivedTripleDraft,
   type MainRef,
   type MainTarget,
   type NestedProposalDraft,
@@ -32,6 +33,7 @@ type StructuredTripleInlineProps = {
   proposals: ProposalLike[];
   nestedProposals: NestedProposalDraft[];
   nestedRefLabels: Map<string, string>;
+  derivedTriples?: DerivedTripleDraft[];
   wrap?: boolean;
   nested?: boolean;
 };
@@ -41,6 +43,7 @@ type RenderContext = {
   proposalByStableKey: Map<string, ProposalLike>;
   nestedById: Map<string, NestedProposalDraft>;
   nestedByStableKey: Map<string, NestedProposalDraft>;
+  derivedByStableKey: Map<string, DerivedTripleDraft>;
   nestedRefLabels: Map<string, string>;
 };
 
@@ -86,6 +89,18 @@ function renderNestedTerm(
     return renderProposalTriple(proposal, false, true);
   }
 
+  const derived = ctx.derivedByStableKey.get(ref.tripleKey);
+  if (derived) {
+    return (
+      <TripleInline
+        subject={derived.subject}
+        predicate={derived.predicate}
+        object={derived.object}
+        nested
+      />
+    );
+  }
+
   return <span className={tripleStyles.nested}>{resolveNestedRefLabel(ref, ctx.nestedRefLabels)}</span>;
 }
 
@@ -111,12 +126,14 @@ function buildContext(
   proposals: ProposalLike[],
   nestedProposals: NestedProposalDraft[],
   nestedRefLabels: Map<string, string>,
+  derivedTriples: DerivedTripleDraft[] = [],
 ): RenderContext {
   return {
     proposalById: new Map(proposals.map((proposal) => [proposal.id, proposal])),
     proposalByStableKey: new Map(proposals.map((proposal) => [proposal.stableKey, proposal])),
     nestedById: new Map(nestedProposals.map((edge) => [edge.id, edge])),
     nestedByStableKey: new Map(nestedProposals.map((edge) => [edge.stableKey, edge])),
+    derivedByStableKey: new Map(derivedTriples.map((dt) => [dt.stableKey, dt])),
     nestedRefLabels,
   };
 }
@@ -126,6 +143,7 @@ type StructuredTermInlineProps = {
   proposals: ProposalLike[];
   nestedProposals: NestedProposalDraft[];
   nestedRefLabels: Map<string, string>;
+  derivedTriples?: DerivedTripleDraft[];
 };
 
 export function StructuredTermInline({
@@ -133,8 +151,9 @@ export function StructuredTermInline({
   proposals,
   nestedProposals,
   nestedRefLabels,
+  derivedTriples,
 }: StructuredTermInlineProps) {
-  const ctx = buildContext(proposals, nestedProposals, nestedRefLabels);
+  const ctx = buildContext(proposals, nestedProposals, nestedRefLabels, derivedTriples);
   return <>{renderNestedTerm(termRef, ctx, new Set())}</>;
 }
 
@@ -143,10 +162,13 @@ export function StructuredTripleInline({
   proposals,
   nestedProposals,
   nestedRefLabels,
+  derivedTriples,
   wrap,
   nested = false,
 }: StructuredTripleInlineProps) {
-  const ctx = buildContext(proposals, nestedProposals, nestedRefLabels);
+  const ctx = buildContext(proposals, nestedProposals, nestedRefLabels, derivedTriples);
+
+  if (target.type === "error") return null;
 
   if (target.type === "proposal") {
     const proposal = ctx.proposalById.get(target.id);

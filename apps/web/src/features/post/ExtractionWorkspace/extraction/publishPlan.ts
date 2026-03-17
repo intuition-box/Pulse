@@ -1,10 +1,12 @@
 import type { DraftPost, NestedProposalDraft, ProposalDraft, Stance } from "./types";
 import type { MainRef } from "./mainRef";
+import { collectMainChainKeys } from "./mainRef";
 
 export type PublishPlanErrorCode =
   | "MAIN_REF_MISSING"
   | "PARENT_REF_MISSING"
-  | "METADATA_UNRESOLVED";
+  | "METADATA_UNRESOLVED"
+  | "ORPHAN_PROPOSALS";
 
 export type PublishPlanError = {
   code: PublishPlanErrorCode;
@@ -132,6 +134,7 @@ export function computePublishIntent(
 
 function toMainTarget(mainRef: MainRef | null): MainTarget | null {
   if (!mainRef) return null;
+  if (mainRef.type === "error") return null;
   if (mainRef.type === "proposal") return { type: "proposal", id: mainRef.id };
   return { type: "nested", nestedId: mainRef.nestedId, nestedStableKey: mainRef.nestedStableKey };
 }
@@ -230,6 +233,65 @@ export function buildPublishPlan(input: PublishPlanInput): PublishPlan {
         mainProposalId: draft.mainProposalId,
         themeAtomTermId,
       });
+    }
+  }
+
+  const nestedByStableKey = new Map(nestedProposals.map((n) => [n.stableKey, n]));
+  for (const draft of draftPosts) {
+    const ref = mainRefByDraft.get(draft.id);
+    if (!ref || ref.type === "error") continue;
+    const draftApproved = draft.proposalIds
+      .map((id) => approvedProposals.find((p) => p.id === id))
+      .filter((p): p is ProposalDraft => p != null);
+    if (draftApproved.length <= 1) continue;
+
+    if (ref.type === "nested") {
+      // Nested MAIN: all proposals must be reachable from the nested chain
+      const chainKeys = collectMainChainKeys(ref.nestedId, nestedProposals);
+      const orphans = draftApproved.filter((p) =>
+        p.id !== draft.mainProposalId && !chainKeys.has(p.stableKey) &&
+        !isStableKeyReachableFromNestedMain(ref.nestedStableKey, p.stableKey, nestedByStableKey),
+      );
+      if (orphans.length > 0) {
+        errors.push({
+          code: "ORPHAN_PROPOSALS",
+          draftId: draft.id,
+          message: `Draft "${draft.id}" contains ${orphans.length} claim(s) not in the main's chain. Split them into separate posts.`,
+        });
+      }
+    } else {
+      const mainP = approvedProposals.find((p) => p.id === ref.id);
+      if (!mainP) continue;
+      const mainChainKeys = new Set<string>([mainP.stableKey]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const [, edge] of nestedByStableKey) {
+          if (edge.status === "rejected") continue;
+          const subIsChain = edge.subject.type === "triple" && mainChainKeys.has(edge.subject.tripleKey);
+          const objIsChain = edge.object.type === "triple" && mainChainKeys.has(edge.object.tripleKey);
+          if (subIsChain || objIsChain) {
+            if (edge.subject.type === "triple" && !mainChainKeys.has(edge.subject.tripleKey)) {
+              mainChainKeys.add(edge.subject.tripleKey);
+              changed = true;
+            }
+            if (edge.object.type === "triple" && !mainChainKeys.has(edge.object.tripleKey)) {
+              mainChainKeys.add(edge.object.tripleKey);
+              changed = true;
+            }
+          }
+        }
+      }
+      const orphans = draftApproved.filter((p) =>
+        p.id !== ref.id && !mainChainKeys.has(p.stableKey),
+      );
+      if (orphans.length > 0) {
+        errors.push({
+          code: "ORPHAN_PROPOSALS",
+          draftId: draft.id,
+          message: `Draft "${draft.id}" contains ${orphans.length} claim(s) not in the main's chain. Split them into separate posts.`,
+        });
+      }
     }
   }
 

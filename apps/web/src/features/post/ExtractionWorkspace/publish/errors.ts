@@ -2,6 +2,7 @@ export type PublishPipelineCode =
   | "MAIN_REF_MISSING"
   | "PARENT_REF_MISSING"
   | "METADATA_UNRESOLVED"
+  | "ORPHAN_PROPOSALS"
   | "hydrate_failed"
   | "atom_resolution_failed"
   | "atom_creation_failed"

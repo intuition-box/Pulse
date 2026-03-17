@@ -59,6 +59,7 @@ export function StepPreviewPublish({ flow, chatOpen, onChatOpenChange, onBack, o
     approvedProposals,
     approvedTripleStatus,
     approvedTripleStatusError,
+    retryTripleCheck,
     depositState,
     publishedPosts,
     publishError,
@@ -96,6 +97,7 @@ export function StepPreviewPublish({ flow, chatOpen, onChatOpenChange, onBack, o
     mainRefByDraft,
     proposals,
     derivedTriples: flow.derivedTriples,
+    nestedRefLabels: flow.nestedRefLabels,
     extractionJob,
     parentPostId: extractionJob?.parentPostId ?? null,
     parentMainTripleTermId: flow.parentMainTripleTermId ?? null,
@@ -127,6 +129,7 @@ export function StepPreviewPublish({ flow, chatOpen, onChatOpenChange, onBack, o
           : (draft && p.id === draft.mainProposalId ? "MAIN" as const : "SUPPORTING" as const);
         return {
           id: p.id,
+          stableKey: p.stableKey,
           sText: p.subjectMatchedLabel || p.sText,
           pText: p.predicateMatchedLabel || p.pText,
           oText: p.objectMatchedLabel || p.oText,
@@ -140,20 +143,53 @@ export function StepPreviewPublish({ flow, chatOpen, onChatOpenChange, onBack, o
         if (ref.type === "atom") return ref.label;
         return nestedRefLabels.get(ref.tripleKey) ?? ref.label ?? "[context]";
       };
+      // Find the draft that owns this nested edge
+      let postNum: number | undefined;
+      let role: "MAIN" | "SUPPORTING" = "SUPPORTING";
+      for (const [draftId, edges] of model.nestedEdgesByDraft.entries()) {
+        if (edges.some((e) => e.id === edge.id)) {
+          const idx = draftPosts.findIndex((d) => d.id === draftId);
+          if (idx >= 0) {
+            postNum = idx + 1;
+            const mainRef = mainRefByDraft.get(draftId);
+            if (mainRef?.type === "nested" && mainRef.nestedStableKey === edge.stableKey) {
+              role = "MAIN";
+            }
+          }
+          break;
+        }
+      }
       return {
         id: `nested:${edge.id}`,
+        stableKey: edge.stableKey,
         sText: resolveRef(edge.subject),
         pText: edge.predicate,
         oText: resolveRef(edge.object),
-        role: "SUPPORTING" as const,
-        postNumber: undefined,
+        role,
+        postNumber: postNum,
       };
     });
 
-    return [...core, ...nestedPseudo];
-  }, [proposals, draftPosts, mainRefByDraft, proposalPostMap, visibleNestedProposals, nestedRefLabels]);
+    return [...nestedPseudo, ...core].sort((a, b) => {
+      const postA = a.postNumber ?? Number.MAX_SAFE_INTEGER;
+      const postB = b.postNumber ?? Number.MAX_SAFE_INTEGER;
+      if (postA !== postB) return postA - postB;
+      if (a.role !== b.role) return a.role === "MAIN" ? -1 : 1;
+      const aNested = a.id.startsWith("nested:");
+      const bNested = b.id.startsWith("nested:");
+      if (aNested !== bNested) return aNested ? -1 : 1;
+      return a.id.localeCompare(b.id);
+    });
+  }, [proposals, draftPosts, mainRefByDraft, proposalPostMap, visibleNestedProposals, nestedRefLabels, model.nestedEdgesByDraft]);
 
-  const reasoningSummary = useMemo(() => buildReasoningSummaryText(proposals, draftPosts), [proposals, draftPosts]);
+  const reasoningSummary = useMemo(
+    () => buildReasoningSummaryText(proposals, draftPosts, {
+      mainRefByDraft,
+      nestedProposals: visibleNestedProposals,
+      nestedRefLabels,
+    }),
+    [proposals, draftPosts, mainRefByDraft, visibleNestedProposals, nestedRefLabels],
+  );
 
   const handlePropagateAtom = useCallback(
     (sourceSlotText: string, atomId: string, label: string) => {
@@ -180,6 +216,9 @@ export function StepPreviewPublish({ flow, chatOpen, onChatOpenChange, onBack, o
     reasoningSummary,
     onBodyChange: draftActions.onBodyChange,
     onSplit: draftActions.onSplit,
+    nestedEdgesByDraft: model.nestedEdgesByDraft,
+    nestedRefLabels: flow.nestedRefLabels,
+    derivedTriples: flow.derivedTriples,
     onUpdateNestedPredicate: flow.updateNestedPredicate,
     onUpdateNestedAtom: flow.updateNestedAtom,
   });
@@ -290,6 +329,7 @@ export function StepPreviewPublish({ flow, chatOpen, onChatOpenChange, onBack, o
           approvedTripleStatus={approvedTripleStatus}
           atomSummary={model.atomSummary}
           proposals={proposals}
+          draftPosts={draftPosts}
           tripleSummary={model.tripleSummary}
           existingTripleCount={model.existingTripleCount}
           minDeposit={flow.minDeposit}
@@ -307,6 +347,7 @@ export function StepPreviewPublish({ flow, chatOpen, onChatOpenChange, onBack, o
           currencySymbol={model.currencySymbol}
           stanceTriples={stanceTriples}
           tagTriples={tagTriples}
+          mainRefByDraft={mainRefByDraft}
         />
       </div>
     );
@@ -374,6 +415,7 @@ export function StepPreviewPublish({ flow, chatOpen, onChatOpenChange, onBack, o
                     nestedEdges={model.nestedEdgesByDraft.get(draft.id) ?? []}
                     allNestedProposals={visibleNestedProposals}
                     nestedRefLabels={nestedRefLabels}
+                    derivedTriples={flow.derivedTriples}
                     mainRef={mainRefByDraft.get(draft.id) ?? null}
                     stanceRequired={stanceRequired}
                     onHover={setHoveredTerms}
@@ -391,6 +433,9 @@ export function StepPreviewPublish({ flow, chatOpen, onChatOpenChange, onBack, o
           {approvedTripleStatus === "error" && approvedTripleStatusError && (
             <div className={styles.tripleNotice}>
               <p className={styles.noticeError}>{approvedTripleStatusError}</p>
+              <Button size="sm" variant="secondary" onClick={retryTripleCheck}>
+                Retry
+              </Button>
             </div>
           )}
           {depositState.status === "confirmed" && (
@@ -415,6 +460,7 @@ export function StepPreviewPublish({ flow, chatOpen, onChatOpenChange, onBack, o
               approvedTripleStatus={approvedTripleStatus}
               atomSummary={model.atomSummary}
               proposals={proposals}
+              draftPosts={draftPosts}
               tripleSummary={model.tripleSummary}
               existingTripleCount={model.existingTripleCount}
               minDeposit={flow.minDeposit}
@@ -434,6 +480,7 @@ export function StepPreviewPublish({ flow, chatOpen, onChatOpenChange, onBack, o
               tagTriples={tagTriples}
               directMainProposalIds={model.directMainProposalIds}
               mainNestedCount={model.mainNestedCount}
+              mainRefByDraft={mainRefByDraft}
             />
           )}
 

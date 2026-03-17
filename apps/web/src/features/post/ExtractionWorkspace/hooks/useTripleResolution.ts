@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import { normalizeLabelForChain } from "@/lib/format/normalizeLabel";
 import { makeTripleKey } from "@/lib/format/makeTripleKey";
@@ -83,6 +83,8 @@ type UseTripleResolutionReturn = {
   semanticSkipped: boolean;
   /** Resolved atom labels → termId (normalized label key). */
   resolvedAtomMap: Map<string, string>;
+  /** Re-trigger the verification check (e.g. after timeout). */
+  retryCheck: () => void;
 };
 
 type ResolveAtomsResponse = {
@@ -120,6 +122,7 @@ export function useTripleResolution({
   const [approved, dispatchApproved] = useReducer(approvedResolutionReducer, INITIAL_APPROVED);
   const [semanticSkipped, setSemanticSkipped] = useState(false);
   const [resolvedAtomMap, setResolvedAtomMap] = useState<Map<string, string>>(new Map());
+  const [retryTrigger, setRetryTrigger] = useState(0);
 
   const approvedTripleLookupId = useRef(0);
 
@@ -495,7 +498,9 @@ export function useTripleResolution({
     return () => {
       active = false;
     };
-  }, [approvedProposals, address, extraAtomLabels]);
+  }, [approvedProposals, address, extraAtomLabels, retryTrigger]);
+
+  const retryCheck = useCallback(() => setRetryTrigger((n) => n + 1), []);
 
   return {
     minDeposit,
@@ -506,5 +511,6 @@ export function useTripleResolution({
     approvedTripleStatusError: approved.error,
     semanticSkipped,
     resolvedAtomMap,
+    retryCheck,
   };
 }

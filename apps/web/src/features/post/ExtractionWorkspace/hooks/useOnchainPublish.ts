@@ -10,12 +10,15 @@ import { ensureIntuitionGraphql } from "@/lib/intuition";
 import { labels } from "@/lib/vocabulary";
 import {
   validateAtomRelevance,
-  validateTripleRelevance,
+  checkMeaningPreservation,
+  isAllowed,
   getReferenceBodyForProposal,
 } from "@/lib/validation/semanticRelevance";
 
 import {
+  assignNestedToDrafts,
   buildResolvedTripleMap,
+  buildNestedEdgeContexts,
   collectNestedAtomLabels,
   buildPublishPlan,
   groupResolvedByDraft,
@@ -78,7 +81,7 @@ type UseOnchainPublishParams = {
   themeAtomTermId: string | null;
   mainRefByDraft: Map<string, MainRef | null>;
   derivedTriples: DerivedTripleDraft[];
-  parentClaim?: string | null;
+  nestedRefLabels: Map<string, string>;
 };
 
 export type PublishStep = "preparing" | "terms" | "claims" | "linking" | "finalizing";
@@ -117,7 +120,7 @@ export function useOnchainPublish({
   themeAtomTermId,
   mainRefByDraft,
   derivedTriples,
-  parentClaim,
+  nestedRefLabels,
 }: UseOnchainPublishParams): UseOnchainPublishReturn {
   const [isPublishing, setIsPublishing] = useState(false);
   const [publishStep, setPublishStep] = useState<PublishStep | null>(null);
@@ -128,7 +131,7 @@ export function useOnchainPublish({
     resolvedByIndex: Array<ResolvedTriple | null>,
     resolvedNestedTriples: ResolvedNestedTriple[],
   ): string | null {
-    if (!mainRef) return null;
+    if (!mainRef || mainRef.type === "error") return null;
     if (mainRef.type === "proposal") {
       return resolvedByIndex.find((r) => r?.proposalId === mainRef.id)?.tripleTermId ?? null;
     }
@@ -202,6 +205,10 @@ export function useOnchainPublish({
       }
       const publishableProposals = publishPlan.publishableProposals;
 
+      const { byDraft: nestedByDraft } = assignNestedToDrafts(
+        visibleNestedProposals, draftPosts, proposals, derivedTriples,
+      );
+
       for (const ap of publishableProposals) {
         const body = getReferenceBodyForProposal(ap.id, draftPosts);
         if (!body) {
@@ -210,20 +217,24 @@ export function useOnchainPublish({
             "Cannot publish: a claim has no associated post body.",
           );
         }
-        const sCheck = validateAtomRelevance(ap.sText, body, "sText", { contextText: parentClaim });
-        if (!sCheck.valid) {
+        const sCheck = validateAtomRelevance(ap.sText, body, "sText");
+        if (!isAllowed(sCheck)) {
           throw new PublishPipelineError("relevance_check_failed", sCheck.reason!);
         }
-        const oCheck = validateAtomRelevance(ap.oText, body, "oText", { contextText: parentClaim });
-        if (!oCheck.valid) {
+        const oCheck = validateAtomRelevance(ap.oText, body, "oText");
+        if (!isAllowed(oCheck)) {
           throw new PublishPipelineError("relevance_check_failed", oCheck.reason!);
         }
-        const tripleCheck = validateTripleRelevance(
-          { subject: ap.sText, predicate: ap.pText, object: ap.oText },
-          body,
-          { contextText: parentClaim },
-        );
-        if (!tripleCheck.valid) {
+        const proposal = proposals.find((p) => p.id === ap.id);
+        const draftId = draftPosts.find((d) => d.proposalIds.includes(ap.id))?.id;
+        const draftNested = draftId ? nestedByDraft.get(draftId) ?? [] : [];
+        const nestedCtx = proposal?.stableKey
+          ? buildNestedEdgeContexts(proposal.stableKey, draftNested, nestedRefLabels)
+          : [];
+        const tripleCheck = checkMeaningPreservation(body, {
+          subject: ap.sText, predicate: ap.pText, object: ap.oText,
+        }, nestedCtx);
+        if (!isAllowed(tripleCheck)) {
           throw new PublishPipelineError("relevance_check_failed", tripleCheck.reason!);
         }
       }
@@ -442,6 +453,7 @@ export function useOnchainPublish({
         visibleNestedProposals,
         mainRefByDraft,
         derivedTriples,
+        nestedRefLabels,
       );
       const draftPayloads = allDraftPayloads.filter(
         (p) => p.triples.length > 0 || p.nestedTriples.length > 0,
