@@ -153,9 +153,10 @@ function makeProposalDedupKey(
   pText: string,
   oText: string,
 ): string {
+  const coreKey = makeLabelKey(sText, pText, oText);
   const outerKey = claim.outermostMainKey?.trim();
-  if (outerKey) return `mainref:${outerKey}`;
-  return `core:${makeLabelKey(sText, pText, oText)}`;
+  if (outerKey) return `mainref:${outerKey}:${coreKey}`;
+  return `core:${coreKey}`;
 }
 
 function collectCandidates(result: AgentExtractionResult): { seeds: ProposalSeed[]; droppedCounts: { noTriple: number; emptySpo: number } } {

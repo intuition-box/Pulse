@@ -1,4 +1,4 @@
-import { generateObject } from "ai";
+import { generateObject, jsonSchema } from "ai";
 import type { LanguageModel } from "ai";
 import { z } from "zod";
 import type { RecursiveSlot } from "../helpers/claimPlanner.js";
@@ -24,16 +24,54 @@ export const GraphOutSchema = z.object({
     predicate: z.string().min(1),
     object: AtomOrTriple,
   }),
-  modifiers: z
-    .array(
-      z.object({
-        prep: z.string().min(1),
-        value: z.string().min(1),
-      }),
-    ),
+  modifiers: z.array(
+    z.object({
+      prep: z.string().min(1),
+      value: z.string().min(1),
+    }),
+  ),
 });
 
 export type GraphOut = z.infer<typeof GraphOutSchema>;
+
+type JSONSchemaObj = Record<string, any>;
+
+// 4-level explicit nesting (no $ref — Groq expands recursive refs and blows context).
+// Level 4 = string only, Level 3 = string | {s,p,o: string}, Level 2 = string | {s,p,o: Level3}, Level 1 = string | {s,p,o: Level2}
+const strField = { type: "string", minLength: 1 };
+const tripleOf = (slot: JSONSchemaObj): JSONSchemaObj => ({
+  type: "object",
+  properties: { subject: slot, predicate: strField, object: slot },
+  required: ["subject", "predicate", "object"],
+  additionalProperties: false,
+});
+
+const level3: JSONSchemaObj = { anyOf: [strField, tripleOf(strField)] };
+const level2: JSONSchemaObj = { anyOf: [strField, tripleOf(level3)] };
+const level1: JSONSchemaObj = { anyOf: [strField, tripleOf(level2)] };
+
+const GRAPH_OUT_JSON_SCHEMA: JSONSchemaObj = {
+  type: "object",
+  properties: {
+    core: {
+      type: "object",
+      properties: { subject: level1, predicate: strField, object: level1 },
+      required: ["subject", "predicate", "object"],
+      additionalProperties: false,
+    },
+    modifiers: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { prep: strField, value: strField },
+        required: ["prep", "value"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["core", "modifiers"],
+  additionalProperties: false,
+};
 
 const GRAPH_SYSTEM = `
 Extract ONE core semantic triple + prepositional modifiers from a claim.
@@ -88,6 +126,10 @@ RECURSIVE SUBJECT/OBJECT:
     Exception: proper nouns and fixed terms stay flat (see ATOM REUSABILITY).
   * Prepositional subjects: "People who rely on AI for everyday decisions" ->
     { "subject": { "subject": "People", "predicate": "who rely on", "object": "AI" }, "predicate": "for", "object": "everyday decisions" }
+- SYMMETRY: Apply recursive nesting to BOTH subject AND object independently.
+  If the subject uses nesting, check whether the object also contains prepositional
+  phrases or restrictive clauses — if so, nest it too. Do NOT leave one side as a
+  long flat string while the other is properly nested.
 - Use flat strings for simple atoms (1-4 words with no internal proposition).
 - Predicate is ALWAYS a flat string (never nested).
 - Usually 1-2 levels are sufficient. Nest deeper only when meaning requires it.
@@ -292,7 +334,13 @@ Claim: "ai is gonna take our jobs lol"
 export async function runGraphExtraction(model: LanguageModel, prompt: string) {
   const { object } = await generateObject({
     model,
-    schema: GraphOutSchema,
+    schema: jsonSchema<GraphOut>(GRAPH_OUT_JSON_SCHEMA, {
+      validate: (value) => {
+        const result = GraphOutSchema.safeParse(value);
+        if (result.success) return { success: true, value: result.data };
+        return { success: false, error: new Error(result.error.message) };
+      },
+    }),
     system: GRAPH_SYSTEM,
     prompt,
   });
