@@ -19,7 +19,7 @@ export async function selectAndDecompose(
   sentence: string,
   deps: DecomposeDeps,
 ): Promise<{ keep: false; reason: string } | { keep: true; claims: DecomposedClaim[] }> {
-  const payload = JSON.stringify({ header_context, previous_sentence, sentence }, null, 2);
+  const payload = JSON.stringify({ header_context, previous_sentence, sentence });
 
   try {
     const result = await retryWithBackoff(() => deps.runClaimDecomposer(deps.getGroqModel(), payload));
@@ -194,7 +194,7 @@ function absorbAdjacentModifiers(
 }
 
 export async function graphFromClaim(claimText: string, sentenceContext: string, deps: GraphDeps): Promise<GraphResult | null> {
-  const payload = JSON.stringify({ claim: claimText, sentence_context: sentenceContext }, null, 2);
+  const payload = JSON.stringify({ claim: claimText, sentence_context: sentenceContext });
 
   try {
     const parsed = await retryWithBackoff(() => deps.runGraphExtraction(deps.getGroqModel(), payload));
@@ -228,12 +228,13 @@ export async function graphFromClaim(claimText: string, sentenceContext: string,
       ? c.object
       : tryNestFlatSlot(fullObject);
 
-    return {
+    const result = {
       core: normalizedCore,
       modifiers: afterSubjAbsorb,
       recursiveSubject: typeof recursiveSubject !== "string" ? recursiveSubject : undefined,
       recursiveObject: typeof recursiveObject !== "string" ? recursiveObject : undefined,
     };
+    return result;
   } catch (err) {
     console.error("[graphFromClaim] LLM error:", err);
     if (isLlmUnavailable(err)) throw err;

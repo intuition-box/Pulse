@@ -61,7 +61,7 @@ export async function runRelationStage(
     try {
       llmCalls++;
       const relOut = await withLightFallback(
-        (m) => deps.runRelationLinking(m, JSON.stringify(relInput, null, 2)),
+        (m) => deps.runRelationLinking(m, JSON.stringify(relInput)),
         deps.getGroqModelLight(), deps.getGroqModel(), "relation-linking",
       );
 
@@ -139,7 +139,7 @@ export async function runRelationStage(
       try {
         llmCalls++;
         const relOut = await withLightFallback(
-          (m) => deps.runRelationLinking(m, JSON.stringify(relInput, null, 2)),
+          (m) => deps.runRelationLinking(m, JSON.stringify(relInput)),
           deps.getGroqModelLight(), deps.getGroqModel(), "relation-linking-xgroup",
         );
 

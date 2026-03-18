@@ -878,7 +878,8 @@ export function DetailsMessage({
         ? draftNestedEdges.filter((e) => e.id !== mainNestedEdge.id)
         : draftNestedEdges;
       const draftProposals = proposals.filter(
-        (p) => draft.proposalIds.includes(p.id) && p.status === "approved" && !nestedSubTripleKeys.has(p.stableKey),
+        (p) => draft.proposalIds.includes(p.id) && p.status === "approved" && !nestedSubTripleKeys.has(p.stableKey)
+          && !(mainNestedEdge && p.id === draft.mainProposalId),
       );
       return { draft, draftProposals, mainNestedEdge, otherNestedEdges };
     });

@@ -81,10 +81,12 @@ function filterClaimsAgainstParent(
     const nextClaims = [];
     for (const c of seg.claims) {
       let reason: ParentFilterReason | null = null;
-      if (c.isRelevant === false) {
-        reason = "drop_unrelated";
-      } else if (isDuplicateOfParentClaim(c.claim, parentContext)) {
-        reason = "drop_duplicate_parent";
+      if (!c.outermostMainKey || c.role === "MAIN") {
+        if (c.isRelevant === false) {
+          reason = "drop_unrelated";
+        } else if (isDuplicateOfParentClaim(c.claim, parentContext)) {
+          reason = "drop_duplicate_parent";
+        }
       }
 
       if (reason === "drop_unrelated") {

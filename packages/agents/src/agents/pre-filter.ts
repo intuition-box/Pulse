@@ -60,8 +60,8 @@ export async function runPreFilter(
   parentClaimText?: string | null,
 ): Promise<PreFilterResult> {
   const prompt = parentClaimText
-    ? JSON.stringify({ text: inputText, parent_claim: parentClaimText }, null, 2)
-    : JSON.stringify({ text: inputText }, null, 2);
+    ? JSON.stringify({ text: inputText, parent_claim: parentClaimText })
+    : JSON.stringify({ text: inputText });
 
   const { object } = await generateObject({
     model,

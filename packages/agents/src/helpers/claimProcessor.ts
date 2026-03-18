@@ -655,6 +655,7 @@ function processNodeRec(
       }
 
       const keyed = tripleKeyed(graph.core);
+
       if (!checkReflexive(keyed).valid || isDuplicateSubjectObject(keyed)) {
         return { ref: termAtom(node.text), stableKey: null, anchorTriple: null, graphable: false };
       }
@@ -696,7 +697,7 @@ function processNodeRec(
           { includeSubjectDecomp: false },
         );
 
-        const anchor = extraClaims[0]?.triple ?? keyed;
+        const anchor = keyed;
 
         return {
           ref: { type: "triple", tripleKey: outerModKey ?? rootEdgeKey },

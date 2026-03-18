@@ -45,7 +45,7 @@ export async function runStanceStage(
 
     try {
       llmCalls++;
-      const stanceOut = await retryWithBackoff(() => deps.runStanceVerification(deps.getGroqModel(), JSON.stringify(stanceInput, null, 2)));
+      const stanceOut = await retryWithBackoff(() => deps.runStanceVerification(deps.getGroqModel(), JSON.stringify(stanceInput)));
 
       const verificationMap = new Map(
         stanceOut.verifications.map((v) => [v.stableKey, v])
