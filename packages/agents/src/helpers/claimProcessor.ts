@@ -574,8 +574,8 @@ function processNodeRec(
         ref: { type: "triple", tripleKey: edgeKey },
         stableKey: edgeKey,
         anchorTriple: childResult.anchorTriple,
-
         graphable: childResult.graphable,
+        extraClaims: childResult.extraClaims,
       };
     }
 
@@ -589,7 +589,8 @@ function processNodeRec(
         localNested, localNestedKeys, derivedTriples,
       );
 
-      if (condResult.anchorTriple) {
+      const condHasRecursive = (condResult.extraClaims?.length ?? 0) > 0;
+      if (condResult.anchorTriple && !condHasRecursive) {
         if (!derivedTriples.some((d) => d.stableKey === condResult.anchorTriple!.stableKey)) {
           derivedTriples.push({ ...condResult.anchorTriple, ownerGroupKey: groupKey });
         }
@@ -604,12 +605,17 @@ function processNodeRec(
         object: condResult.ref,
       });
 
+      const mergedExtra = [
+        ...(mainResult.extraClaims ?? []),
+        ...(condResult.extraClaims ?? []),
+      ];
+
       return {
         ref: { type: "triple", tripleKey: edgeKey },
         stableKey: edgeKey,
         anchorTriple: mainResult.anchorTriple,
-
         graphable: mainResult.graphable || condResult.graphable,
+        extraClaims: mergedExtra.length > 0 ? mergedExtra : undefined,
       };
     }
 
@@ -638,7 +644,8 @@ function processNodeRec(
           object: reasonResult.ref,
         });
 
-        if (reasonResult.anchorTriple) {
+        const reasonHasRecursive = (reasonResult.extraClaims?.length ?? 0) > 0;
+        if (reasonResult.anchorTriple && !reasonHasRecursive) {
           pushDerived(derivedTriples, reasonResult.anchorTriple, groupKey);
         }
 
@@ -654,6 +661,7 @@ function processNodeRec(
           stableKey: edgeKey,
           anchorTriple: syntheticAnchor,
           graphable: reasonResult.graphable,
+          extraClaims: reasonResult.extraClaims,
         };
       }
 
@@ -661,7 +669,8 @@ function processNodeRec(
         return { ref: termAtom(nodeText(node.main)), stableKey: null, anchorTriple: null, graphable: false };
       }
 
-      if (reasonResult.anchorTriple) {
+      const reasonHasRecursive = (reasonResult.extraClaims?.length ?? 0) > 0;
+      if (reasonResult.anchorTriple && !reasonHasRecursive) {
         if (!derivedTriples.some((d) => d.stableKey === reasonResult.anchorTriple!.stableKey)) {
           derivedTriples.push({ ...reasonResult.anchorTriple, ownerGroupKey: groupKey });
         }
@@ -675,11 +684,17 @@ function processNodeRec(
         object: reasonResult.ref,
       });
 
+      const mergedExtra = [
+        ...(mainResult.extraClaims ?? []),
+        ...(reasonResult.extraClaims ?? []),
+      ];
+
       return {
         ref: { type: "triple", tripleKey: edgeKey },
         stableKey: edgeKey,
         anchorTriple: mainResult.anchorTriple,
         graphable: mainResult.graphable || reasonResult.graphable,
+        extraClaims: mergedExtra.length > 0 ? mergedExtra : undefined,
       };
     }
   }

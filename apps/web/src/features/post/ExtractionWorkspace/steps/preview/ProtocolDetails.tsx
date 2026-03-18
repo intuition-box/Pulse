@@ -144,8 +144,16 @@ export function ProtocolDetails({
       .map((e) => (e.mainTarget as { type: "nested"; nestedStableKey: string }).nestedStableKey),
   );
 
+  const nestedSubTripleKeys = new Set<string>();
+  for (const edge of nestedEdges) {
+    for (const ref of [edge.subject, edge.object]) {
+      if (ref.type === "triple") nestedSubTripleKeys.add(ref.tripleKey);
+    }
+  }
+
   const supportingCoreTriples = tripleSummary.newTriples.filter((t) => {
     if (directMainProposalIds?.has(t.proposal.id)) return false;
+    if (nestedSubTripleKeys.has(t.proposal.stableKey)) return false;
     return true;
   });
   const supportingNestedEdges = nestedEdges.filter((edge) => !mainOuterNestedKeys.has(edge.stableKey));

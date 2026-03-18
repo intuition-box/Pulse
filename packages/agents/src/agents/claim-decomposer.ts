@@ -120,9 +120,8 @@ Sentence: "AI will replace most jobs, and also pineapple belongs on pizza."
 
 Sentence: "Renewable energy is cheaper than fossil fuels, which is why many countries are transitioning."
 => claims:
-  { "text": "Renewable energy is cheaper than fossil fuels.", "role": "MAIN", "group": 0, "candidateKind": "standard", "confidence": 0.9 }
-  { "text": "Many countries are transitioning to renewable energy.", "role": "MAIN", "group": 1, "candidateKind": "standard", "confidence": 0.9 }
-(Both independently debatable → two groups)
+  { "text": "Renewable energy is cheaper than fossil fuels, which is why many countries are transitioning.", "role": "MAIN", "group": 0, "candidateKind": "causal", "confidence": 0.9 }
+(Cause-effect linked by "which is why" → ONE claim. The graph extractor nests it as S=[...cheaper than fossil fuels] P="which is why" O=[countries are transitioning].)
 
 Sentence: "The education system should be reformed because standardized testing does not measure real intelligence, and it discourages creative thinking."
 => claims:
@@ -179,8 +178,8 @@ SPLITTING — split ONLY on explicit discourse markers:
 - Compound causal: "X because A and B" → split into "X because A" + "X because B"
   Each reason MUST keep the full main assertion. NEVER output the reasons as standalone claims.
 - Condition: if/unless/when/whenever
-- Which-clause: ", which ..." — extract as a separate claim in its own group.
-  Replace "which" with the referent from the preceding clause.
+- Which-clause: ", which is why / which means / which shows ..." — keep as ONE claim.
+  The graph extractor handles the nesting (S=[first part] P="which is why" O=[second part]).
 - "and" connecting two debatable clauses — SPLIT when each side has its own
   finite verb and could stand alone as a sentence.
   SPLIT: "AI will replace jobs and governments should regulate it" (two subjects, two verbs)

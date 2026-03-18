@@ -94,7 +94,8 @@ function normalizeCoreWithClaimText(
   return { subject: sentenceSubject, predicate: modal, object: sentenceRemainder };
 }
 
-const NEST_PREPS = new Set(["in", "on", "for", "from", "with", "about", "by", "through", "over", "against"]);
+const NEST_PREPS = new Set(["in", "on", "for", "from", "with", "about", "by", "through", "over", "against", "among", "between", "within", "under", "into", "without", "beyond", "across", "toward", "towards"]);
+// "of" intentionally excluded — too common in noun phrases ("one of the most...", "advances of our time")
 
 const FIXED_FLAT_RE = /\b(freedom of speech|quality of life|cost of living|burden of proof|standard of living|balance of power|united states of america|state of the art)\b/i;
 const QUANTIFIED_OF_RE = /\b(millions?|thousands?|hundreds?|billions?|dozens?|most|some|many|all|none|few|plenty|lack)\s+of\b/i;
@@ -102,15 +103,15 @@ const QUANTIFIED_OF_RE = /\b(millions?|thousands?|hundreds?|billions?|dozens?|mo
 /**
  * Try to nest a flat string into a RecursiveSlot by splitting at preposition boundaries.
  * Scans right-to-left so the outermost prep becomes the top-level split.
- * Only activates for strings > 4 words.
+ * Only activates for strings > 2 words (3+ words with a preposition get nested).
  */
 export function tryNestFlatSlot(text: string): RecursiveSlot {
   const words = text.split(/\s+/);
-  if (words.length <= 4) return text;
+  if (words.length <= 2) return text;
   if (FIXED_FLAT_RE.test(text)) return text;
   if (QUANTIFIED_OF_RE.test(text)) return text;
 
-  for (let i = words.length - 2; i >= 2; i--) {
+  for (let i = words.length - 2; i >= 1; i--) {
     const w = words[i].toLowerCase();
 
     // "to + verb" infinitive pattern

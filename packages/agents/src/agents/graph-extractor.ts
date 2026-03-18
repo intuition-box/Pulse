@@ -241,18 +241,19 @@ Claim: "AI will replace most jobs within the next 10 years."
      "modifiers": [] }
 
 Claim: "The minimum wage should be raised to 20 dollars per hour."
-=> { "core": { "subject": "The minimum wage", "predicate": "should be",
-       "object": { "subject": "raised", "predicate": "to", "object": "20 dollars per hour" } },
+=> { "core": { "subject": "The minimum wage", "predicate": "should be raised to",
+       "object": "20 dollars per hour" },
      "modifiers": [] }
 
 --- NOMINALIZATION (unfold "The X of Y" into active predicate) ---
 
-Claim: "The impact of AI in the creative sector will be positive."
-=> { "core": { "subject": "AI", "predicate": "will positively impact", "object": "the creative sector" },
+Claim: "The impact of AI on the creative sector will be positive."
+=> { "core": { "subject": "AI", "predicate": "will positively impact",
+       "object": "the creative sector" },
      "modifiers": [] }
 
 Claim: "The influence of social media on teenagers is harmful."
-=> { "core": { "subject": "Social media", "predicate": "harms", "object": "teenagers" },
+=> { "core": { "subject": "Social media", "predicate": "harmfully influences", "object": "teenagers" },
      "modifiers": [] }
 
 --- RELATIVE CLAUSE (nest into object/subject) ---

@@ -856,8 +856,9 @@ export function DetailsMessage({
         visited.add(e.stableKey);
         for (const ref of [e.subject, e.object]) {
           if (ref.type !== "triple") continue;
-          const p = proposals.find((pr) => pr.stableKey === ref.tripleKey);
-          if (p && draft.proposalIds.includes(p.id)) return true;
+          // Check ALL proposals with matching stableKey (causal splits create
+          // duplicate main proposals with different groupKeys / IDs)
+          if (proposals.some((pr) => pr.stableKey === ref.tripleKey && draft.proposalIds.includes(pr.id))) return true;
           const ne = nestedEdges.find((n) => n.stableKey === ref.tripleKey);
           if (ne && edgeBelongsToDraft(ne, visited)) return true;
         }
@@ -871,19 +872,43 @@ export function DetailsMessage({
       const mainProposal = proposals.find(
         (p) => p.id === draft.mainProposalId && p.status === "approved",
       );
-      const mainNestedEdge = mainProposal?.outermostMainKey
-        ? draftNestedEdges.find((e) => e.stableKey === mainProposal.outermostMainKey) ?? null
-        : null;
-      const otherNestedEdges = mainNestedEdge
-        ? draftNestedEdges.filter((e) => e.id !== mainNestedEdge.id)
-        : draftNestedEdges;
+      const draftGroupKeys = new Set(
+        draft.proposalIds
+          .map((pid) => proposals.find((pr) => pr.id === pid))
+          .filter(Boolean)
+          .map((p) => p!.groupKey),
+      );
+      // Check if the edge's object triple belongs to this draft (proposal OR derived triple)
+      const objectInDraft = (e: NestedProposalDraft) => {
+        if (e.object.type !== "triple") return false;
+        const tripleKey = e.object.tripleKey;
+        const p = proposals.find((pr) => pr.stableKey === tripleKey);
+        if (p && draft.proposalIds.includes(p.id)) return true;
+        const dt = derivedTriples.find((d) => d.stableKey === tripleKey);
+        if (dt && draftGroupKeys.has(dt.ownerGroupKey)) return true;
+        return false;
+      };
+      const mainNestedEdge = (() => {
+        if (mainProposal?.outermostMainKey) {
+          const found = draftNestedEdges.find((e) => e.stableKey === mainProposal.outermostMainKey);
+          if (found && (found.edgeKind !== "relation" || objectInDraft(found))) return found;
+        }
+        return draftNestedEdges.find((e) => e.edgeKind === "relation" && objectInDraft(e)) ?? null;
+      })();
+      const otherNestedEdges = draftNestedEdges.filter((e) => {
+        if (mainNestedEdge && e.id === mainNestedEdge.id) return false;
+        if (e.edgeKind === "relation") return false;
+        return true;
+      });
       const draftProposals = proposals.filter(
-        (p) => draft.proposalIds.includes(p.id) && p.status === "approved" && !nestedSubTripleKeys.has(p.stableKey)
+        (p) => draft.proposalIds.includes(p.id) && p.status === "approved"
+          // Only hide sub-triples when their parent NestedRow exists to display them
+          && !(mainNestedEdge && nestedSubTripleKeys.has(p.stableKey))
           && !(mainNestedEdge && p.id === draft.mainProposalId),
       );
       return { draft, draftProposals, mainNestedEdge, otherNestedEdges };
     });
-  }, [draftPosts, proposals, nestedEdges]);
+  }, [draftPosts, proposals, nestedEdges, derivedTriples]);
 
   return (
     <div className={styles.container}>

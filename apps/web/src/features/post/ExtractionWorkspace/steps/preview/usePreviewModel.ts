@@ -320,18 +320,24 @@ export function usePreviewModel(inputs: PreviewModelInputs): PreviewModel {
   }, [orphanedKeys, draftPosts, mainRefByDraft, displayNestedProposals, proposals]);
 
   const hasIrrelevantContent = useMemo(() => {
+    const nestedSubKeys = new Set<string>();
+    for (const edge of displayNestedProposals) {
+      for (const ref of [edge.subject, edge.object]) {
+        if (ref.type === "triple") nestedSubKeys.add(ref.tripleKey);
+      }
+    }
+
     const draftProposalIds = new Set(draftPosts.flatMap((d) => d.proposalIds));
     for (const ap of publishableProposals) {
       if (!draftProposalIds.has(ap.id)) continue;
+      const proposal = proposals.find((p) => p.id === ap.id);
+      if (proposal?.stableKey && nestedSubKeys.has(proposal.stableKey)) continue;
       const body = getReferenceBodyForProposal(ap.id, draftPosts);
       if (!body) return true;
       const sCheck = validateAtomRelevance(ap.sText, body, "sText");
       const oCheck = validateAtomRelevance(ap.oText, body, "oText");
-      const proposal = proposals.find((p) => p.id === ap.id);
-      const draftId = draftPosts.find((d) => d.proposalIds.includes(ap.id))?.id;
-      const draftNested = draftId ? nestedEdgesByDraft.get(draftId) ?? [] : [];
       const nestedCtx = proposal?.stableKey
-        ? buildNestedEdgeContexts(proposal.stableKey, draftNested, nestedRefLabels)
+        ? buildNestedEdgeContexts(proposal.stableKey, displayNestedProposals, nestedRefLabels)
         : [];
       const tripleCheck = checkMeaningPreservation(body, {
         subject: ap.sText, predicate: ap.pText, object: ap.oText,
@@ -346,10 +352,13 @@ export function usePreviewModel(inputs: PreviewModelInputs): PreviewModel {
       const body = draft.body;
       if (!body) return true;
       const labelCheck = checkChainLabelMeaning(body, chainLabel);
-      if (!isAllowed(labelCheck)) return true;
+      if (!isAllowed(labelCheck)) {
+        console.warn("[semantic-validation] BLOCKED chain label", { chainLabel, body, labelCheck });
+        return true;
+      }
     }
     return false;
-  }, [publishableProposals, draftPosts, mainRefByDraft, nestedRefLabels, proposals, nestedEdgesByDraft]);
+  }, [publishableProposals, draftPosts, mainRefByDraft, nestedRefLabels, proposals, displayNestedProposals]);
 
   const checks: Check[] = [
     { ok: walletConnected, label: labels.connectWalletToPublish, okLabel: "Wallet connected" },

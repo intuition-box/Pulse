@@ -74,7 +74,7 @@ export const labels = {
   rejectionOffTopic: "Your text doesn't seem related to this debate. Make sure you're replying to the right claim.",
   rejectionNotDebatable: "This doesn't contain a debatable argument. Try rephrasing as a clear claim.",
   rejectionGibberish: "We couldn't understand your text. Please write a clear argument.",
-  rejectionNoMainClaims: "The AI had trouble analyzing your argument. Try simplifying your sentence.",
+  rejectionNoMainClaims: "The AI had trouble analyzing your argument. Try simplifying or reformulate your sentence.",
   rejectionNoNewInformation: "Your reply does not add new information relative to the parent claim.",
   rejectionLlmUnavailable: "The AI service is temporarily busy. Please wait a moment and try again.",
   rejectionExtractionFailed: "Something went wrong during analysis. Please try again.",
