@@ -199,8 +199,37 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
           stance: normalizedStance,
         }),
       });
-      const data = await response.json();
-      if (!response.ok) {
+
+      // Read SSE stream — skip heartbeat pings, parse the final data line
+      const reader = response.body?.getReader();
+      if (!reader) {
+        setMessage("Unable to extract proposals.");
+        return fail;
+      }
+      const decoder = new TextDecoder();
+      let buffer = "";
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let data: any = null;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (value) buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            data = JSON.parse(line.slice(6));
+          }
+        }
+        if (done) break;
+      }
+
+      if (!data) {
+        setMessage("Unable to extract proposals.");
+        return fail;
+      }
+
+      const status = (data._status as number) ?? 200;
+      if (status !== 200) {
         if (data.rejection) {
           const code = data.error as string;
           const messageMap: Record<string, string> = {
@@ -214,7 +243,7 @@ export function useExtractionFlow({ themeSlug, parentPostId, parentMainTripleTer
           };
           setMessage(messageMap[code] ?? "Unable to extract proposals.");
         } else {
-          setMessage(data.error ?? "Unable to extract proposals.");
+          setMessage((data.error as string) ?? "Unable to extract proposals.");
         }
         return fail;
       }

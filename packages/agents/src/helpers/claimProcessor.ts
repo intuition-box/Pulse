@@ -2,8 +2,8 @@ import type { NestedEdge, TermRef } from "../core.js";
 import type { DerivedTriple, FlatTriple, ClaimAtomMatches, ClaimNode, ClaimTreePlan, TreeProcessResult } from "../types.js";
 import type { ClaimPlan, GraphResult, RecursiveSlot } from "./claimPlanner.js";
 import { flattenSlot } from "./llmAdapters.js";
-import { tryDecomposeSubject, tryExtractSubProposition, isReportingVerb } from "./parse.js";
-import { tripleKeyed, termAtom, termTriple, pushEdge, pushModifierEdges } from "./termRef.js";
+import { tryExtractSubProposition, isReportingVerb } from "./parse.js";
+import { tripleKeyed, termAtom, termTriple, pushEdge } from "./termRef.js";
 import { checkReflexive } from "./validate.js";
 import { normalizeForCompare, tokenize } from "./text.js";
 import { trackFallback } from "./fallbackTracker.js";
@@ -18,51 +18,6 @@ export type ClaimResult = {
   outermostMainKey?: string | null;
   isMeta?: boolean;
 };
-
-export function sortModifiersByPosition(
-  modifiers: Array<{ prep: string; value: string }>,
-  claimText: string,
-): Array<{ prep: string; value: string }> {
-  if (modifiers.length <= 1) return modifiers;
-  const lower = claimText.toLowerCase();
-  return modifiers
-    .map((mod, origIdx) => ({ mod, origIdx }))
-    .sort((a, b) => {
-      const phraseA = `${a.mod.prep} ${a.mod.value}`.toLowerCase();
-      const phraseB = `${b.mod.prep} ${b.mod.value}`.toLowerCase();
-      const posA = lower.indexOf(phraseA);
-      const posB = lower.indexOf(phraseB);
-      const fallA = posA !== -1 ? posA : lower.indexOf(a.mod.prep.toLowerCase());
-      const fallB = posB !== -1 ? posB : lower.indexOf(b.mod.prep.toLowerCase());
-      const effA = fallA === -1 ? Infinity : fallA;
-      const effB = fallB === -1 ? Infinity : fallB;
-      return effA !== effB ? effA - effB : a.origIdx - b.origIdx;
-    })
-    .map(({ mod }) => mod);
-}
-
-function pushSubjectDecomp(
-  graph: { core: FlatTriple },
-  parentKeyed: FlatTriple & { stableKey: string },
-  nested: NestedEdge[],
-  existingNestedKeys: Set<string>,
-  derivedTriples: DerivedTriple[],
-  groupKey: string,
-) {
-  const subjDecomp = tryDecomposeSubject(graph.core);
-  if (!subjDecomp) return;
-  const subTriple = tripleKeyed(subjDecomp.subTriple);
-  if (!derivedTriples.some((d) => d.stableKey === subTriple.stableKey)) {
-    derivedTriples.push({ ...subTriple, ownerGroupKey: groupKey });
-  }
-  pushEdge(nested, existingNestedKeys, {
-    kind: "modifier",
-    origin: "agent",
-    predicate: subjDecomp.prep,
-    subject: termTriple(parentKeyed),
-    object: termTriple(subTriple),
-  });
-}
 
 function nullClaimResult(
   index: number,
@@ -80,37 +35,6 @@ function keyedCoreIfValid(
   const keyed = tripleKeyed(graph.core);
   if (!checkReflexive(keyed).valid) return null;
   return keyed;
-}
-
-function applyGraphPostProcessing(
-  graph: GraphResult,
-  parentKeyed: FlatTriple & { stableKey: string },
-  claimText: string,
-  groupKey: string,
-  nested: NestedEdge[],
-  existingNestedKeys: Set<string>,
-  derivedTriples: DerivedTriple[],
-  opts?: { includeSubjectDecomp?: boolean; sortModifiers?: boolean },
-): string | null {
-  let outermost: string | null = null;
-  if (graph.modifiers?.length) {
-    const sortedMods =
-      opts?.sortModifiers === false
-        ? graph.modifiers
-        : sortModifiersByPosition(graph.modifiers, claimText);
-    outermost = pushModifierEdges(
-      nested,
-      existingNestedKeys,
-      parentKeyed,
-      sortedMods,
-      derivedTriples,
-      groupKey,
-    );
-  }
-  if (opts?.includeSubjectDecomp !== false) {
-    pushSubjectDecomp(graph, parentKeyed, nested, existingNestedKeys, derivedTriples, groupKey);
-  }
-  return outermost;
 }
 
 function isDuplicateSubjectObject(core: FlatTriple): boolean {
@@ -228,16 +152,6 @@ function processMeta(
     object: termTriple(objectTriple),
   });
 
-  applyGraphPostProcessing(
-    propGraph,
-    objectTriple,
-    plan.claim,
-    groupKey,
-    nested,
-    existingNestedKeys,
-    derivedTriples,
-  );
-
   return { index: tripleIdx, claim: plan.claim, role: plan.role, group: plan.group, triple: objectTriple, outermostMainKey: metaEdgeKey, isMeta: true };
 }
 
@@ -269,25 +183,12 @@ function processConditional(
       derivedTriples.push({ ...mainBase, ownerGroupKey: groupKey });
     }
 
-    const modifierOuterKey = applyGraphPostProcessing(
-      mainGraph,
-      mainBase,
-      claim,
-      groupKey,
-      nested,
-      existingNestedKeys,
-      derivedTriples,
-    );
-
     const condRef = buildConditionalObjectRef(condGraph, cond.condText, derivedTriples, groupKey, mainBase);
-    const condSubjectRef: TermRef = modifierOuterKey
-      ? { type: "triple", tripleKey: modifierOuterKey }
-      : termTriple(mainBase);
     const outermostMainKey = pushEdge(nested, existingNestedKeys, {
       kind: "conditional",
       origin: "agent",
       predicate: fullKw,
-      subject: condSubjectRef,
+      subject: termTriple(mainBase),
       object: condRef,
     });
 
@@ -317,19 +218,6 @@ function processConditional(
     subject: termAtom(subject),
     object: condRef,
   });
-
-  if (mainGraph?.modifiers?.length) {
-    applyGraphPostProcessing(
-      mainGraph,
-      core,
-      claim,
-      groupKey,
-      nested,
-      existingNestedKeys,
-      derivedTriples,
-      { includeSubjectDecomp: false, sortModifiers: false },
-    );
-  }
 
   return { index: tripleIdx, claim, role, group, triple: core, outermostMainKey };
 }
@@ -372,17 +260,7 @@ function processCausal(
     return { index: tripleIdx, claim, role, group, triple: reasonKeyed, outermostMainKey: edgeKey };
   }
 
-  const modifierOuterKey = applyGraphPostProcessing(
-    mainGraph,
-    mainKeyed,
-    claim,
-    groupKey,
-    nested,
-    existingNestedKeys,
-    derivedTriples,
-  );
-
-  let outermostMainKey: string | null = modifierOuterKey;
+  let outermostMainKey: string | null = null;
 
   if (reasonGraph) {
     const reasonKeyed = keyedCoreIfValid(reasonGraph);
@@ -390,15 +268,11 @@ function processCausal(
       if (!derivedTriples.some((d) => d.stableKey === reasonKeyed.stableKey))
         derivedTriples.push({ ...reasonKeyed, ownerGroupKey: groupKey });
 
-      const causalSubjectRef: TermRef = modifierOuterKey
-        ? { type: "triple", tripleKey: modifierOuterKey }
-        : termTriple(mainKeyed);
-
       outermostMainKey = pushEdge(nested, existingNestedKeys, {
         kind: "relation",
         origin: "agent",
         predicate: plan.causal.marker,
-        subject: causalSubjectRef,
+        subject: termTriple(mainKeyed),
         object: termTriple(reasonKeyed),
       });
     }
@@ -435,9 +309,6 @@ function processStandard(
         subject: termAtom(core.subject),
         object: termTriple(objectTriple),
       });
-      const recoveryMods = sortModifiersByPosition(graph.modifiers, plan.claim);
-      pushModifierEdges(nested, existingNestedKeys, objectTriple, recoveryMods, derivedTriples, groupKey);
-      pushSubjectDecomp(graph, objectTriple, nested, existingNestedKeys, derivedTriples, groupKey);
       return {
         index: tripleIdx, claim: plan.claim, role: plan.role, group: plan.group,
         triple: objectTriple, outermostMainKey: recoveryMetaKey, isMeta: true,
@@ -445,20 +316,7 @@ function processStandard(
     }
   }
 
-  const outermostMainKey = applyGraphPostProcessing(
-    graph,
-    core,
-    plan.claim,
-    groupKey,
-    nested,
-    existingNestedKeys,
-    derivedTriples,
-    { includeSubjectDecomp: false },
-  );
-
-  pushSubjectDecomp(graph, core, nested, existingNestedKeys, derivedTriples, groupKey);
-
-  return { index: tripleIdx, claim: plan.claim, role: plan.role, group: plan.group, triple: core, outermostMainKey: outermostMainKey };
+  return { index: tripleIdx, claim: plan.claim, role: plan.role, group: plan.group, triple: core, outermostMainKey: null };
 }
 
 export function processClaimPlan(
@@ -569,23 +427,6 @@ export function validateLeafMeaning(
 
 type ExtraClaim = { claim: string; triple: FlatTriple & { stableKey: string } };
 
-/** Filter out modifiers whose "prep value" already appears inside a recursive slot. */
-function filterSlotLocalModifiers(
-  graph: GraphResult,
-): Array<{ prep: string; value: string }> {
-  if (!graph.modifiers?.length) return graph.modifiers ?? [];
-  if (!graph.recursiveSubject && !graph.recursiveObject) return graph.modifiers;
-
-  const flatSubj = graph.recursiveSubject ? flattenSlot(graph.recursiveSubject).toLowerCase() : "";
-  const flatObj = graph.recursiveObject ? flattenSlot(graph.recursiveObject).toLowerCase() : "";
-
-  return graph.modifiers.filter((mod) => {
-    const modPhrase = `${mod.prep} ${mod.value}`.toLowerCase();
-    if (flatSubj.includes(modPhrase) || flatObj.includes(modPhrase)) return false;
-    return true;
-  });
-}
-
 function buildTermRefFromSlot(
   slot: RecursiveSlot,
   groupKey: string,
@@ -684,25 +525,10 @@ function processNodeRec(
           object: objRef,
         });
 
-        // Filter modifiers already captured in recursive slots (safety net)
-        const filteredModifiers = filterSlotLocalModifiers(graph);
-        const filteredGraph = filteredModifiers.length !== (graph.modifiers?.length ?? 0)
-          ? { ...graph, modifiers: filteredModifiers }
-          : graph;
-
-        const rootAsKeyed = { ...keyed, stableKey: rootEdgeKey };
-        const outerModKey = applyGraphPostProcessing(
-          filteredGraph, rootAsKeyed, node.text, groupKey,
-          localNested, localNestedKeys, derivedTriples,
-          { includeSubjectDecomp: false },
-        );
-
-        const anchor = keyed;
-
         return {
-          ref: { type: "triple", tripleKey: outerModKey ?? rootEdgeKey },
-          stableKey: outerModKey ?? rootEdgeKey,
-          anchorTriple: anchor,
+          ref: { type: "triple", tripleKey: rootEdgeKey },
+          stableKey: rootEdgeKey,
+          anchorTriple: keyed,
           graphable: true,
           extraClaims,
         };
@@ -713,42 +539,17 @@ function processNodeRec(
       );
       if (propWrap) {
         trackFallback("processClaimTree:propositionalWrap");
-        const wrapKeyed = { ...keyed, stableKey: propWrap.edgeKey };
-        const outerKey = applyGraphPostProcessing(
-          graph, wrapKeyed, node.text, groupKey,
-          localNested, localNestedKeys, derivedTriples,
-          { includeSubjectDecomp: false },
-        );
         return {
-          ref: { type: "triple", tripleKey: outerKey ?? propWrap.edgeKey },
-          stableKey: outerKey ?? propWrap.edgeKey,
+          ref: { type: "triple", tripleKey: propWrap.edgeKey },
+          stableKey: propWrap.edgeKey,
           anchorTriple: propWrap.anchorTriple,
           graphable: true,
         };
       }
 
-      const outermostKey = applyGraphPostProcessing(
-        graph,
-        keyed,
-        node.text,
-        groupKey,
-        localNested,
-        localNestedKeys,
-        derivedTriples,
-      );
-
-      pushSubjectDecomp(
-        graph,
-        keyed,
-        localNested,
-        localNestedKeys,
-        derivedTriples,
-        groupKey,
-      );
-
       return {
-        ref: outermostKey ? { type: "triple", tripleKey: outermostKey } : termTriple(keyed),
-        stableKey: outermostKey ?? keyed.stableKey,
+        ref: termTriple(keyed),
+        stableKey: keyed.stableKey,
         anchorTriple: keyed,
         graphable: true,
       };

@@ -9,7 +9,6 @@ import {
   MODAL_EXTRACT_RE,
   TRANSITIVE_RE,
   FILLER_SUBJECTS_RE,
-  DECOMPOSE_PREPS_RE,
   SUB_PROPOSITION_MIN_WORDS,
   SUB_PROPOSITION_MAX_WORDS,
   CAUSAL_BEFORE_MIN_WORDS,
@@ -170,36 +169,3 @@ export function tryExtractSubProposition(value: string): FlatTriple | null {
   return null;
 }
 
-export function tryDecomposeValue(value: string): FlatTriple | null {
-  const trimmed = value.trim();
-  const words = trimmed.split(/\s+/);
-  if (words.length < 3) return null;
-
-  const match = trimmed.match(DECOMPOSE_PREPS_RE);
-  if (!match) return null;
-
-  const subject = match[1].trim();
-  const predicate = match[2].trim();
-  const object = match[3].trim();
-
-  if (!subject || !predicate || !object) return null;
-  return { subject, predicate, object };
-}
-
-export function tryDecomposeSubject(core: FlatTriple): { prep: string; subTriple: FlatTriple } | null {
-  const subj = core.subject.trim();
-  const words = subj.split(/\s+/);
-  if (words.length < 3) return null;
-
-  const match = subj.match(DECOMPOSE_PREPS_RE);
-  if (!match) return null;
-
-  const subject = match[1].trim();
-  const prep = match[2].trim();
-  const object = match[3].trim();
-
-  if (!subject || !prep || !object) return null;
-
-  if (prep.toLowerCase() === "of") return null;
-  return { prep, subTriple: { subject, predicate: prep, object } };
-}

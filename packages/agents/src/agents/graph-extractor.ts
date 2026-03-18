@@ -74,7 +74,7 @@ const GRAPH_OUT_JSON_SCHEMA: JSONSchemaObj = {
 };
 
 const GRAPH_SYSTEM = `
-Extract ONE core semantic triple + prepositional modifiers from a claim.
+Extract ONE core semantic triple from a claim. ALL content goes into nested S/P/O — no modifiers.
 
 Return ONLY JSON. No markdown. No code fences. No explanations.
 
@@ -88,73 +88,59 @@ Output EXACTLY:
     "predicate": "...",
     "object": "..." or { "subject": ..., "predicate": "...", "object": ... }
   },
-  "modifiers": [...]
+  "modifiers": []
 }
+
+IMPORTANT: modifiers must ALWAYS be an empty array []. All prepositional phrases go into nested subject/object.
 
 RULE PRIORITY (when rules conflict):
 1. Faithfulness — preserve the original meaning, tense, modality, and negation exactly.
-2. Reusability — prefer short, reusable atoms (subject/object).
-3. Fluency — natural English phrasing in the predicate.
+2. Completeness — every content word from the claim must appear in the output.
+3. Reusability — prefer short, reusable atoms (subject/object leaf nodes).
+4. Fluency — natural English phrasing in the predicate.
 Never sacrifice meaning for shorter atoms.
 
 CORE TRIPLE:
-- Keep subject/predicate/object MINIMAL. Strip prepositional phrases into modifiers.
 - Subject = grammatical subject (may include more than a word like "Carbon emissions").
 - Predicate = main verb/copula + modals (should/must/can/will) + negation (not/never).
   Include adjective complements in the predicate when the verb requires them:
   "makes X worse" => predicate "makes worse", object "X".
-- Object = direct complement only. No trailing "by X", "for X", "in X", etc.
+- Object = everything after the predicate that carries meaning. Nest prepositional phrases
+  as recursive sub-triples (see RECURSIVE SUBJECT/OBJECT).
   Adverbs that are part of the verbal phrase stay in the object:
   "drives capital offshore" => object "capital offshore".
 - When a preposition is essential to the verb's meaning (hide X about Y, spread lies about Y,
   invest in Y, rely on Y, profit from Y, spy on Y, worry about Y, belong on/in/to Z,
   depend on Z, result in Z, lead to Z, focus on Z), fold "verb + prep" into the predicate
-  so the object is a reusable atom. Only split into a modifier when the prep phrase is truly
-  optional context (time, place, quantity).
-- NEVER duplicate: if a prep is folded into the predicate, do NOT also emit it as a modifier.
+  so the object is a reusable atom.
 - Do NOT output a bare preposition as the CORE predicate (for/in/of/to/by/with).
   Bare prepositions ARE allowed as predicates inside nested sub-triples.
 
 RECURSIVE SUBJECT/OBJECT:
-- When the subject or object contains a RESTRICTIVE clause that narrows WHO/WHAT
-  is being talked about, express it as a nested triple instead of a flat string.
+- ALL prepositional phrases in subject or object MUST be nested as sub-triples.
+  This includes trailing preps (from/to/in/on/for/by/with/about/of/within/through/over/against),
+  relative clauses (who/which/that + verb), participial phrases, and infinitive clauses.
 - Use nested triples for:
   * Relative clauses: "People who rely on AI" -> { "subject": "People", "predicate": "who rely on", "object": "AI" }
   * Participial phrases: "Students using ChatGPT" -> { "subject": "Students", "predicate": "using", "object": "ChatGPT" }
-  * Prepositional noun phrases (in/on/for/from/with/of/about/…):
-    "cheap labor in developing countries" -> { "subject": "cheap labor", "predicate": "in", "object": "developing countries" }
-    Exception: proper nouns and fixed terms stay flat (see ATOM REUSABILITY).
-  * Prepositional subjects: "People who rely on AI for everyday decisions" ->
+  * Prepositional noun phrases: "reposts from TikTok" -> { "subject": "reposts", "predicate": "from", "object": "TikTok" }
+  * Multi-level: "People who rely on AI for everyday decisions" ->
     { "subject": { "subject": "People", "predicate": "who rely on", "object": "AI" }, "predicate": "for", "object": "everyday decisions" }
+  * Consequence/infinitive: "misinformation fast enough to undermine democratic elections" ->
+    { "subject": "misinformation", "predicate": "fast enough to undermine", "object": "democratic elections" }
 - SYMMETRY: Apply recursive nesting to BOTH subject AND object independently.
   If the subject uses nesting, check whether the object also contains prepositional
-  phrases or restrictive clauses — if so, nest it too. Do NOT leave one side as a
-  long flat string while the other is properly nested.
-- Use flat strings for simple atoms (1-4 words with no internal proposition).
+  phrases or restrictive clauses — if so, nest it too.
+- Use flat strings ONLY for simple atoms (1-2 words with no preposition).
+  3+ words with a preposition MUST be nested.
 - Predicate is ALWAYS a flat string (never nested).
-- Usually 1-2 levels are sufficient. Nest deeper only when meaning requires it.
-- MODIFIER SCOPE: When a prepositional phrase modifies a nested subject or object
-  (not the main verb), absorb it INTO that slot's recursive triple.
-  Root modifiers should ONLY modify the core predicate (time, place, manner of the main action).
-  Test: "does this phrase modify the MAIN VERB or something inside a nested slot?"
-  "gradually lose the ability to think critically on their own"
-  → "on their own" modifies "think critically" (inside the object), NOT "gradually lose".
-  Correct: object = { "subject": { "subject": "the ability", "predicate": "to think", "object": "critically" },
-                       "predicate": "on", "object": "their own" }
-  Wrong: modifiers: [{ "prep": "on", "value": "their own" }]
+  Exception: proper nouns and fixed terms stay flat (e.g. "United States of America", "freedom of speech").
+  Exception: quantified "of" (millions of, thousands of, most of, some of, dozens of)
+  and attributive "of" (quality of life, cost of living, burden of proof) stay as one flat atom.
 
 ATOM REUSABILITY:
-- DEFAULT: subject and object should be 1-4 words for reusability.
-- EXCEPTION: When a subject/object contains a restrictive clause (who/which/that + verb,
-  present participle, "of"), use the nested triple format instead of truncating.
-  NEVER truncate a subject/object if doing so changes WHO/WHAT the claim is about.
-- If subject or object contains a prepositional phrase, prefer nesting it as a recursive
-  sub-triple (see RECURSIVE SUBJECT/OBJECT). Only extract as a root modifier when the
-  phrase modifies the core predicate (time, place, manner of the main action).
-  Exception: proper nouns and fixed terms
-  that cannot be decomposed (e.g. "United States of America", "freedom of speech").
-  Exception: quantified "of" (millions of, thousands of, most of, some of, dozens of)
-  and attributive "of" (quality of life, cost of living, burden of proof) stay as one atom.
+- Leaf atoms (innermost subject/object strings) should be 1-2 words for maximum reusability.
+  NEVER truncate if doing so changes WHO/WHAT the claim is about — nest instead.
 - Prefer common nouns/noun phrases that others would independently use as atoms.
 
 DENOMINALIZATION:
@@ -173,7 +159,7 @@ COMPARATIVES (than / as...as):
 - "X is ADJ-er than Y" -> predicate includes "is ADJ-er than", object is Y.
 - "X is more ADJ than Y" -> predicate includes "is more ADJ than", object is Y.
 - "X is as ADJ as Y" -> predicate includes "is as ADJ as", object is Y.
-- NEVER strip "than" or comparative "as" into a modifier.
+- NEVER strip "than" or comparative "as".
 
 PRONOUN RESOLUTION:
 - Use sentence_context ONLY to resolve an obvious leading pronoun subject (It/This/They/These/Those).
@@ -186,8 +172,6 @@ FAITHFULNESS:
 - For intransitive verbs ("X works", "Y breaks down"), use whatever content follows the verb
   as the object. If nothing follows, try to find a meaningful complement from context.
   Do NOT invent a fake object like "(in scale)" or "(in general)".
-- If any content follows the verb (clause, adverb, prepositional phrase), it IS the object or modifier.
-  Do not ignore it.
 
 WEAK OBJECTS — NEVER use these as the object:
 - "it", "this", "that", "things", "something", "everything", "them", "people"
@@ -200,37 +184,26 @@ ATTRIBUTION HINT:
   The pipeline handles attribution separately. But if you include the source, that's OK too.
 - Object should be a concept, not a full clause with its own subject-verb-object.
 
-MODIFIERS:
-- Each modifier = { "prep": "<preposition>", "value": "<complement>" }
-- Common preps: about, by, for, in, of, since, within, to, from, at, as, with, on, through, over, against
-- Infinitive clauses after the core ("to be X", "to V X") are modifiers too.
-  Use the infinitive verb phrase as prep (e.g. "to be", "to implement", "to achieve").
-  This applies to purpose ("in order to"), consequence ("too X to Y", "enough to Y"),
-  and any trailing infinitive that adds meaning beyond the core triple.
-  For consequence patterns, the prep MUST include the degree word + infinitive verb:
-  "enough to destabilize" (NOT "enough to"), "too much to be" (NOT "too much to").
-  The value is the verb's complement only (a reusable atom, not a verb phrase).
-- Modifier values follow the same atom reusability rules as subject/object (1-4 words).
-  If a value contains a preposition, split into separate modifiers.
-- Multi-word temporal markers ("long before", "shortly after", "even before") stay as ONE prep.
-  "Social media destroyed attention spans long before AI existed."
-  => modifier { "prep": "long before", "value": "AI existed" }
-- Only extract modifiers EXPLICIT in the claim. Do not invent.
-- If no modifiers, output empty array.
-
 NOISY INPUT: Claims may contain slang, typos, abbreviations, or informal English. Normalize to clean English triples. "gonna" => "will", "aint" => "is not", etc.
 
 EXAMPLES (grouped by pattern family):
 
---- BASIC (simple S-P-O + modifiers) ---
+--- BASIC (all preps nested into object) ---
 
 Claim: "Ultra-processed foods increase cancer risk by 30%."
-=> { "core": { "subject": "Ultra-processed foods", "predicate": "increase", "object": "cancer risk" },
-     "modifiers": [{ "prep": "by", "value": "30%" }] }
+=> { "core": { "subject": "Ultra-processed foods", "predicate": "increase",
+       "object": { "subject": "cancer risk", "predicate": "by", "object": "30%" } },
+     "modifiers": [] }
 
 Claim: "Public trust depends on transparency in scientific research."
-=> { "core": { "subject": "Public trust", "predicate": "depends on", "object": "transparency" },
-     "modifiers": [{ "prep": "in", "value": "scientific research" }] }
+=> { "core": { "subject": "Public trust", "predicate": "depends on",
+       "object": { "subject": "transparency", "predicate": "in", "object": "scientific research" } },
+     "modifiers": [] }
+
+Claim: "All Instagram content is reposts from TikTok."
+=> { "core": { "subject": "All Instagram content", "predicate": "is",
+       "object": { "subject": "reposts", "predicate": "from", "object": "TikTok" } },
+     "modifiers": [] }
 
 --- COMPARISON (than / as...as — keep full comparative in predicate) ---
 
@@ -242,31 +215,35 @@ Claim: "Bitcoin is a better store of value than gold."
 => { "core": { "subject": "Bitcoin", "predicate": "is a better store of value than", "object": "gold" },
      "modifiers": [] }
 
---- CAUSALITY (cause-effect with modifiers) ---
+--- CAUSALITY (nest trailing preps into object) ---
 
 Claim: "Rent control makes housing shortages worse."
 => { "core": { "subject": "Rent control", "predicate": "makes worse", "object": "housing shortages" },
      "modifiers": [] }
 
 Claim: "Climate change poses a significant threat to global food security."
-=> { "core": { "subject": "Climate change", "predicate": "poses", "object": "a significant threat" },
-     "modifiers": [{ "prep": "to", "value": "global food security" }] }
+=> { "core": { "subject": "Climate change", "predicate": "poses",
+       "object": { "subject": "a significant threat", "predicate": "to", "object": "global food security" } },
+     "modifiers": [] }
 
 --- NEGATION (preserve not/never/doesn't in predicate) ---
 
 Claim: "Free speech doesn't mean freedom from consequences."
-=> { "core": { "subject": "Free speech", "predicate": "doesn't mean", "object": "freedom" },
-     "modifiers": [{ "prep": "from", "value": "consequences" }] }
+=> { "core": { "subject": "Free speech", "predicate": "doesn't mean",
+       "object": { "subject": "freedom", "predicate": "from", "object": "consequences" } },
+     "modifiers": [] }
 
 --- MODALITY (preserve should/must/will/can in predicate) ---
 
 Claim: "AI will replace most jobs within the next 10 years."
-=> { "core": { "subject": "AI", "predicate": "will replace", "object": "most jobs" },
-     "modifiers": [{ "prep": "within", "value": "the next 10 years" }] }
+=> { "core": { "subject": "AI", "predicate": "will replace",
+       "object": { "subject": "most jobs", "predicate": "within", "object": "the next 10 years" } },
+     "modifiers": [] }
 
 Claim: "The minimum wage should be raised to 20 dollars per hour."
-=> { "core": { "subject": "The minimum wage", "predicate": "should be", "object": "raised" },
-     "modifiers": [{ "prep": "to", "value": "20 dollars per hour" }] }
+=> { "core": { "subject": "The minimum wage", "predicate": "should be",
+       "object": { "subject": "raised", "predicate": "to", "object": "20 dollars per hour" } },
+     "modifiers": [] }
 
 --- NOMINALIZATION (unfold "The X of Y" into active predicate) ---
 
@@ -278,21 +255,24 @@ Claim: "The influence of social media on teenagers is harmful."
 => { "core": { "subject": "Social media", "predicate": "harms", "object": "teenagers" },
      "modifiers": [] }
 
---- RELATIVE CLAUSE (split proposition out of object into modifier) ---
+--- RELATIVE CLAUSE (nest into object/subject) ---
 
 Claim: "AI should regulate citizens who are educated."
-=> { "core": { "subject": "AI", "predicate": "should regulate", "object": "citizens" },
-     "modifiers": [{ "prep": "who are", "value": "educated" }] }
+=> { "core": { "subject": "AI", "predicate": "should regulate",
+       "object": { "subject": "citizens", "predicate": "who are", "object": "educated" } },
+     "modifiers": [] }
 
 Claim: "We need policies that reduce carbon emissions."
-=> { "core": { "subject": "We", "predicate": "need", "object": "policies" },
-     "modifiers": [{ "prep": "that reduce", "value": "carbon emissions" }] }
+=> { "core": { "subject": "We", "predicate": "need",
+       "object": { "subject": "policies", "predicate": "that reduce", "object": "carbon emissions" } },
+     "modifiers": [] }
 
---- CONSEQUENCE (degree + infinitive verb in prep, direct object stays in core) ---
+--- CONSEQUENCE (degree + infinitive in nested predicate) ---
 
 Claim: "Social media amplifies misinformation fast enough to undermine democratic elections."
-=> { "core": { "subject": "Social media", "predicate": "amplifies", "object": "misinformation" },
-     "modifiers": [{ "prep": "fast enough to undermine", "value": "democratic elections" }] }
+=> { "core": { "subject": "Social media", "predicate": "amplifies",
+       "object": { "subject": "misinformation", "predicate": "fast enough to undermine", "object": "democratic elections" } },
+     "modifiers": [] }
 
 --- RECURSIVE SUBJECT (restrictive clause -> nested triple) ---
 
@@ -308,11 +288,12 @@ Claim: "People who rely on AI for everyday decisions gradually lose the ability 
 
 Claim: "Students using ChatGPT for homework never develop real analytical skills."
 => { "core": {
-       "subject": { "subject": "Students", "predicate": "using", "object": "ChatGPT" },
+       "subject": { "subject": { "subject": "Students", "predicate": "using", "object": "ChatGPT" },
+                    "predicate": "for", "object": "homework" },
        "predicate": "never develop",
        "object": "real analytical skills"
      },
-     "modifiers": [{ "prep": "for", "value": "homework" }] }
+     "modifiers": [] }
 
 --- RECURSIVE BOTH SIDES ---
 

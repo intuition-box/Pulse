@@ -94,19 +94,6 @@ function normalizeCoreWithClaimText(
   return { subject: sentenceSubject, predicate: modal, object: sentenceRemainder };
 }
 
-function isRedundantModifier(
-  mod: { prep: string; value: string },
-  core: { subject: string; predicate: string; object: string },
-): boolean {
-  const valueNorm = normalizeForCompare(mod.value);
-  if (!valueNorm) return true;
-
-  const subjectNorm = normalizeForCompare(core.subject);
-  const objectNorm = normalizeForCompare(core.object);
-
-  return valueNorm === subjectNorm || valueNorm === objectNorm;
-}
-
 const NEST_PREPS = new Set(["in", "on", "for", "from", "with", "about", "by", "through", "over", "against"]);
 
 const FIXED_FLAT_RE = /\b(freedom of speech|quality of life|cost of living|burden of proof|standard of living|balance of power|united states of america|state of the art)\b/i;
@@ -150,47 +137,20 @@ export function tryNestFlatSlot(text: string): RecursiveSlot {
   return text;
 }
 
-// Time preps almost always modify the predicate, not a slot — skip absorption for these.
-const TIME_PREPS = new Set(["within", "since", "during", "before", "after", "until", "by"]);
-
 /**
- * Absorb modifiers whose "prep value" trails a slot's flat text in the original claim.
- * Works on FLAT text, before nesting, so even a 2-word object like "the ability"
- * gets extended to "the ability to think critically on their own" before tryNestFlatSlot.
+ * Safety net: if the LLM still emits modifiers despite the prompt saying "always []",
+ * absorb each one as a nesting level wrapping recursiveObject.
  */
-function absorbAdjacentModifiers(
-  slotText: string,
+function absorbStrayModifiers(
+  recursiveObject: RecursiveSlot,
   modifiers: Array<{ prep: string; value: string }>,
-  claimText: string,
-): { extendedText: string; remaining: Array<{ prep: string; value: string }> } {
-  if (!modifiers.length) return { extendedText: slotText, remaining: modifiers };
-
-  const cleanClaim = claimText.toLowerCase().replace(/\.\s*$/, "");
-  let currentLower = slotText.toLowerCase();
-  const remaining: Array<{ prep: string; value: string }> = [];
-
+): RecursiveSlot {
+  let current = recursiveObject;
   for (const mod of modifiers) {
-    const firstWord = mod.prep.split(/\s+/)[0].toLowerCase();
-    if (TIME_PREPS.has(firstWord)) { remaining.push(mod); continue; }
-
-    const extended = `${currentLower} ${mod.prep} ${mod.value}`.toLowerCase();
-    if (cleanClaim.includes(extended)) {
-      currentLower = extended;
-    } else {
-      remaining.push(mod);
-    }
+    if (!mod.prep || !mod.value) continue;
+    current = { subject: current, predicate: mod.prep, object: mod.value };
   }
-
-  if (currentLower === slotText.toLowerCase()) return { extendedText: slotText, remaining: modifiers };
-
-  // Recover original casing from claim text
-  const idx = cleanClaim.indexOf(currentLower);
-  if (idx >= 0) {
-    const originalCase = claimText.trim().replace(/\.\s*$/, "").slice(idx, idx + currentLower.length);
-    return { extendedText: originalCase, remaining };
-  }
-
-  return { extendedText: slotText, remaining: modifiers };
+  return current;
 }
 
 export async function graphFromClaim(claimText: string, sentenceContext: string, deps: GraphDeps): Promise<GraphResult | null> {
@@ -208,33 +168,29 @@ export async function graphFromClaim(claimText: string, sentenceContext: string,
     const rawCore = { subject: flatSubject, predicate: c.predicate.trim(), object: flatObject };
     const fixedCore = fixCompoundPredicate(rawCore);
     const normalizedCore = normalizeCoreWithClaimText(fixedCore, claimText);
-    const rawModifiers = parsed.modifiers
+
+    // LLM-produced recursive slots
+    let recursiveSubject: RecursiveSlot = typeof c.subject !== "string"
+      ? c.subject
+      : tryNestFlatSlot(normalizedCore.subject);
+    let recursiveObject: RecursiveSlot = typeof c.object !== "string"
+      ? c.object
+      : tryNestFlatSlot(normalizedCore.object);
+
+    // Safety net: absorb any stray modifiers into recursiveObject
+    const strayModifiers = parsed.modifiers
       .map((m) => ({ prep: m.prep.trim(), value: m.value.trim() }))
       .filter((m) => m.prep && m.value);
+    if (strayModifiers.length > 0) {
+      recursiveObject = absorbStrayModifiers(recursiveObject, strayModifiers);
+    }
 
-    const allModifiers = rawModifiers.filter((m) => !isRedundantModifier(m, normalizedCore));
-
-    const { extendedText: fullObject, remaining: afterObjAbsorb } = typeof c.object === "string"
-      ? absorbAdjacentModifiers(normalizedCore.object, allModifiers, claimText)
-      : { extendedText: normalizedCore.object, remaining: allModifiers };
-    const { extendedText: fullSubject, remaining: afterSubjAbsorb } = typeof c.subject === "string"
-      ? absorbAdjacentModifiers(normalizedCore.subject, afterObjAbsorb, claimText)
-      : { extendedText: normalizedCore.subject, remaining: afterObjAbsorb };
-
-    const recursiveSubject = typeof c.subject !== "string"
-      ? c.subject
-      : tryNestFlatSlot(fullSubject);
-    const recursiveObject = typeof c.object !== "string"
-      ? c.object
-      : tryNestFlatSlot(fullObject);
-
-    const result = {
+    return {
       core: normalizedCore,
-      modifiers: afterSubjAbsorb,
+      modifiers: [],
       recursiveSubject: typeof recursiveSubject !== "string" ? recursiveSubject : undefined,
       recursiveObject: typeof recursiveObject !== "string" ? recursiveObject : undefined,
     };
-    return result;
   } catch (err) {
     console.error("[graphFromClaim] LLM error:", err);
     if (isLlmUnavailable(err)) throw err;

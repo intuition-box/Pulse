@@ -296,132 +296,143 @@ export async function POST(request: Request) {
 
   const themeName = theme.name;
 
-  try {
-    const extraction = await runExtraction(trimmedInput, {
-      themeTitle: themeName,
-      parentClaimText,
-      userStance: normalizedStance,
-      searchFn: (query, limit) => searchAtomsServer(query, limit, exactLookupConfig),
-    });
-    const { seeds: candidates, droppedCounts } = collectCandidates(extraction);
-    const nestedSeeds = collectNestedProposals(extraction.nested ?? []);
-    if (droppedCounts.noTriple > 0 || droppedCounts.emptySpo > 0) {
-      console.warn("[extract] droppedCounts:", droppedCounts);
-    }
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const ping = () => controller.enqueue(encoder.encode(": ping\n\n"));
+      const heartbeat = setInterval(ping, 5_000);
+      ping();
 
-    if (extraction.rejection) {
-      await prisma.submission.update({
-        where: { id: submission.id },
-        data: { status: "FAILED" },
-      });
-      const statusMap: Record<RejectionCode, number> = {
-        OFF_TOPIC: 422,
-        NOT_DEBATABLE: 422,
-        GIBBERISH: 422,
-        NO_MAIN_CLAIMS: 422,
-        NO_NEW_INFORMATION: 422,
-        LLM_UNAVAILABLE: 503,
+      const send = (data: Record<string, unknown>, status = 200) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ ...data, _status: status })}\n\n`));
       };
-      return NextResponse.json(
-        { error: extraction.rejection.code, rejection: true },
-        { status: statusMap[extraction.rejection.code] ?? 422 },
-      );
-    }
 
-    if (candidates.length === 0) {
-      await prisma.submission.update({
-        where: { id: submission.id },
-        data: { status: "FAILED" },
-      });
-      return NextResponse.json(
-        { error: "NO_MAIN_CLAIMS", rejection: true },
-        { status: 422 },
-      );
-    }
+      try {
+        const extraction = await runExtraction(trimmedInput, {
+          themeTitle: themeName,
+          parentClaimText,
+          userStance: normalizedStance,
+          searchFn: (query, limit) => searchAtomsServer(query, limit, exactLookupConfig),
+        });
+        const { seeds: candidates, droppedCounts } = collectCandidates(extraction);
+        const nestedSeeds = collectNestedProposals(extraction.nested ?? []);
+        if (droppedCounts.noTriple > 0 || droppedCounts.emptySpo > 0) {
+          console.warn("[extract] droppedCounts:", droppedCounts);
+        }
 
-    await prisma.submission.update({
-      where: { id: submission.id },
-      data: {
-        status: "READY_TO_PUBLISH",
-      },
-    });
+        if (extraction.rejection) {
+          await prisma.submission.update({
+            where: { id: submission.id },
+            data: { status: "FAILED" },
+          });
+          const statusMap: Record<RejectionCode, number> = {
+            OFF_TOPIC: 422,
+            NOT_DEBATABLE: 422,
+            GIBBERISH: 422,
+            NO_MAIN_CLAIMS: 422,
+            NO_NEW_INFORMATION: 422,
+            LLM_UNAVAILABLE: 503,
+          };
+          send({ error: extraction.rejection.code, rejection: true }, statusMap[extraction.rejection.code] ?? 422);
+        } else if (candidates.length === 0) {
+          await prisma.submission.update({
+            where: { id: submission.id },
+            data: { status: "FAILED" },
+          });
+          send({ error: "NO_MAIN_CLAIMS", rejection: true }, 422);
+        } else {
+          await prisma.submission.update({
+            where: { id: submission.id },
+            data: { status: "READY_TO_PUBLISH" },
+          });
 
-    return NextResponse.json({
-      submission: {
-        id: submission.id,
-        status: "READY_TO_PUBLISH",
-        createdAt: submission.createdAt.toISOString(),
-        userId: submission.userId,
-        themeSlug: submission.themeSlug,
-        parentPostId: submission.parentPostId,
-        stance: submission.stance,
-      },
-      proposals: candidates.map((candidate, index) => ({
-        id: `proposal_${submission.id}_${index}`,
-        kind: "TRIPLE" as const,
-        payload: {
-          subject: candidate.sText,
-          predicate: candidate.pText,
-          object: candidate.oText,
-          stableKey: candidate.stableKey,
-          role: candidate.role,
-          suggestedStance: candidate.suggestedStance ?? null,
-          stanceAligned: candidate.stanceAligned ?? null,
-          stanceReason: candidate.stanceReason ?? null,
-          isRelevant: candidate.isRelevant ?? null,
-          claimText: candidate.claimText,
-          sentenceText: candidate.sentenceText,
-          segmentIndex: candidate.segmentIndex,
-          groupKey: candidate.groupKey,
-          subjectTermId: candidate.subjectTermId ?? null,
-          predicateTermId: candidate.predicateTermId ?? null,
-          objectTermId: candidate.objectTermId ?? null,
-          subjectConfidence: candidate.subjectConfidence ?? null,
-          predicateConfidence: candidate.predicateConfidence ?? null,
-          objectConfidence: candidate.objectConfidence ?? null,
-          subjectMatchedLabel: candidate.subjectMatchedLabel ?? null,
-          predicateMatchedLabel: candidate.predicateMatchedLabel ?? null,
-          objectMatchedLabel: candidate.objectMatchedLabel ?? null,
-          subjectMeta: candidate.subjectMeta ?? null,
-          predicateMeta: candidate.predicateMeta ?? null,
-          objectMeta: candidate.objectMeta ?? null,
-          outermostMainKey: candidate.outermostMainKey,
-        },
-        decision: "PENDING" as const,
-      })),
-      nestedProposals: nestedSeeds.map((seed, index) => ({
-        id: `nested_${submission.id}_${index}`,
-        kind: "NESTED_TRIPLE" as const,
-        payload: {
-          edgeKind: seed.edgeKind,
-          predicate: seed.predicate,
-          subject: seed.subject,
-          object: seed.object,
-          stableKey: seed.stableKey,
-        },
-        decision: "PENDING" as const,
-      })),
-      derivedTriples: (extraction.derivedTriples ?? []).map((dt) => ({
-        subject: dt.subject,
-        predicate: dt.predicate,
-        object: dt.object,
-        stableKey: dt.stableKey,
-        ownerGroupKey: dt.ownerGroupKey,
-      })),
-      droppedCounts,
-    });
-  } catch (error) {
-    const safeError = toSafeError(error);
-    console.error("[POST /api/extract] extraction failed:", safeError);
+          send({
+            submission: {
+              id: submission.id,
+              status: "READY_TO_PUBLISH",
+              createdAt: submission.createdAt.toISOString(),
+              userId: submission.userId,
+              themeSlug: submission.themeSlug,
+              parentPostId: submission.parentPostId,
+              stance: submission.stance,
+            },
+            proposals: candidates.map((candidate, index) => ({
+              id: `proposal_${submission.id}_${index}`,
+              kind: "TRIPLE" as const,
+              payload: {
+                subject: candidate.sText,
+                predicate: candidate.pText,
+                object: candidate.oText,
+                stableKey: candidate.stableKey,
+                role: candidate.role,
+                suggestedStance: candidate.suggestedStance ?? null,
+                stanceAligned: candidate.stanceAligned ?? null,
+                stanceReason: candidate.stanceReason ?? null,
+                isRelevant: candidate.isRelevant ?? null,
+                claimText: candidate.claimText,
+                sentenceText: candidate.sentenceText,
+                segmentIndex: candidate.segmentIndex,
+                groupKey: candidate.groupKey,
+                subjectTermId: candidate.subjectTermId ?? null,
+                predicateTermId: candidate.predicateTermId ?? null,
+                objectTermId: candidate.objectTermId ?? null,
+                subjectConfidence: candidate.subjectConfidence ?? null,
+                predicateConfidence: candidate.predicateConfidence ?? null,
+                objectConfidence: candidate.objectConfidence ?? null,
+                subjectMatchedLabel: candidate.subjectMatchedLabel ?? null,
+                predicateMatchedLabel: candidate.predicateMatchedLabel ?? null,
+                objectMatchedLabel: candidate.objectMatchedLabel ?? null,
+                subjectMeta: candidate.subjectMeta ?? null,
+                predicateMeta: candidate.predicateMeta ?? null,
+                objectMeta: candidate.objectMeta ?? null,
+                outermostMainKey: candidate.outermostMainKey,
+              },
+              decision: "PENDING" as const,
+            })),
+            nestedProposals: nestedSeeds.map((seed, index) => ({
+              id: `nested_${submission.id}_${index}`,
+              kind: "NESTED_TRIPLE" as const,
+              payload: {
+                edgeKind: seed.edgeKind,
+                predicate: seed.predicate,
+                subject: seed.subject,
+                object: seed.object,
+                stableKey: seed.stableKey,
+              },
+              decision: "PENDING" as const,
+            })),
+            derivedTriples: (extraction.derivedTriples ?? []).map((dt) => ({
+              subject: dt.subject,
+              predicate: dt.predicate,
+              object: dt.object,
+              stableKey: dt.stableKey,
+              ownerGroupKey: dt.ownerGroupKey,
+            })),
+            droppedCounts,
+          });
+        }
+      } catch (error) {
+        const safeError = toSafeError(error);
+        console.error("[POST /api/extract] extraction failed:", safeError);
 
-    await prisma.submission.update({
-      where: { id: submission.id },
-      data: { status: "FAILED" },
-    });
+        await prisma.submission.update({
+          where: { id: submission.id },
+          data: { status: "FAILED" },
+        });
 
-    return NextResponse.json(
-      { error: "EXTRACTION_FAILED", rejection: true, details: safeError.message },
-      { status: 500 },
-    );
-  }
+        send({ error: "EXTRACTION_FAILED", rejection: true, details: safeError.message }, 500);
+      } finally {
+        clearInterval(heartbeat);
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }
