@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ThemeBadge } from "@/components/ThemeBadge/ThemeBadge";
 import type { ThemeSummary } from "@/app/HomePageClient";
 import { WeekVote } from "./WeekVote";
+import { RankingWidget } from "./RankingWidget";
+import { FEATURED_RANKING } from "@/lib/rankings";
 import styles from "./HomeSidebar.module.css";
 
 type HomeSidebarProps = {
@@ -18,6 +20,8 @@ export function HomeSidebar({ themes }: HomeSidebarProps) {
         <h3 className={`${styles.title} ${styles.titleCenter}`}>Global Perception</h3>
         <WeekVote />
       </section>
+
+      <RankingWidget config={FEATURED_RANKING} />
 
       {themes.length > 0 && (
         <section className={styles.section}>

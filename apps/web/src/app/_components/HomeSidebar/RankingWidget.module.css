@@ -1,0 +1,210 @@
+/* ── Ranking widget ──────────────────────────────────────────────────── */
+
+.widget {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4);
+}
+
+.surtitle {
+  display: block;
+  margin-bottom: var(--space-1);
+  font-size: var(--font-size-2xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-display);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* ── Candidate list ─────────────────────────────────────────────────── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.candidateRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rank {
+  flex-shrink: 0;
+  width: 20px;
+  font-family: var(--font-display);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.candidateRow:first-child .rank {
+  color: var(--text-primary);
+}
+
+.candidateInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.candidateLabel {
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Mini ratio bar ─────────────────────────────────────────────────── */
+
+.miniBar {
+  display: flex;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.miniBarSupport {
+  background: var(--stance-supports-text);
+  border-radius: 2px 0 0 2px;
+  transition: width var(--transition-fast);
+}
+
+.miniBarOppose {
+  flex: 1;
+  background: var(--stance-refutes-text);
+  border-radius: 0 2px 2px 0;
+}
+
+/* ── Net score ──────────────────────────────────────────────────────── */
+
+.netScore {
+  flex-shrink: 0;
+  font-size: var(--font-size-tiny);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 28px;
+  text-align: right;
+}
+
+.netScorePositive {
+  color: var(--stance-supports-text);
+}
+
+.netScoreNegative {
+  color: var(--stance-refutes-text);
+}
+
+/* ── Add button ─────────────────────────────────────────────────────── */
+
+.addBtn {
+  width: 100%;
+  margin-top: var(--space-3);
+  padding: var(--space-2);
+  border: 1px dashed var(--border-default);
+  border-radius: var(--radius-md);
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-size-tiny);
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.addBtn:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+/* ── Candidate link ────────────────────────────────────────────────── */
+
+.candidateLink {
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-decoration: none;
+}
+
+.candidateLink:hover {
+  text-decoration: underline;
+}
+
+/* ── Add candidate section ──────────────────────────────────────────── */
+
+.addSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.addActions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.addSubmit {
+  flex-shrink: 0;
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--accent-blue);
+  font-family: inherit;
+  font-size: var(--font-size-tiny);
+  font-weight: 600;
+  color: white;
+  cursor: pointer;
+}
+
+.addSubmit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.addCancel {
+  flex-shrink: 0;
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-size-tiny);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.addCancel:hover {
+  color: var(--text-primary);
+}
+
+.addError {
+  margin: 0;
+  font-size: var(--font-size-tiny);
+  color: var(--stance-refutes-text);
+}
