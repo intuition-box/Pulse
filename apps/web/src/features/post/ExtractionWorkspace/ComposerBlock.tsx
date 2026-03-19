@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Composer } from "@/features/post/Composer/Composer";
 import { ExtractionFlowDialog } from "./ExtractionFlowDialog";
 import type { UseComposerFlowResult } from "./hooks/useComposerFlow";
@@ -7,9 +8,14 @@ import type { UseComposerFlowResult } from "./hooks/useComposerFlow";
 type Props = {
   composerFlow: UseComposerFlowResult;
   className?: string;
+  themeSlot?: ReactNode;
+  extraDisabled?: boolean;
+  extraDisabledHint?: string;
+  hideHeader?: boolean;
+  placeholder?: string;
 };
 
-export function ComposerBlock({ composerFlow, className }: Props) {
+export function ComposerBlock({ composerFlow, className, themeSlot, extraDisabled, extraDisabledHint, hideHeader, placeholder }: Props) {
   const {
     flow,
     composerOpen,
@@ -35,7 +41,11 @@ export function ComposerBlock({ composerFlow, className }: Props) {
             onInputChange={flow.setInputText}
             onExtract={handleExtract}
             onClose={closeComposer}
-            onStanceChange={flow.stanceRequired ? flow.setStance : undefined}
+            themeSlot={themeSlot}
+            extraDisabled={extraDisabled}
+            extraDisabledHint={extraDisabledHint}
+            hideHeader={hideHeader}
+            placeholder={placeholder}
           />
         </section>
       )}

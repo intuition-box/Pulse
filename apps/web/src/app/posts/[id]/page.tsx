@@ -48,7 +48,7 @@ export default async function PostPage({ params }: PostPageProps) {
   const post = await prisma.post.findUnique({
     where: { id },
     include: {
-      theme: true,
+      postThemes: { select: { theme: { select: { slug: true, name: true } } } },
       tripleLinks: {
         select: { termId: true, role: true },
       },
@@ -116,10 +116,7 @@ export default async function PostPage({ params }: PostPageProps) {
         createdAt: post.createdAt.toISOString(),
         tripleLinks: linkedTriples,
       }}
-      theme={{
-        slug: post.theme.slug,
-        name: post.theme.name,
-      }}
+      themes={post.postThemes.map((pt) => pt.theme)}
       breadcrumbs={breadcrumbs}
       replies={replySummaries}
     />

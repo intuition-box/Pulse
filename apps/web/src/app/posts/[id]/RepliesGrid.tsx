@@ -4,20 +4,24 @@ import type { ReplyNode } from "@/lib/types/reply";
 
 import styles from "./RepliesGrid.module.css";
 
+type ThemeItem = { slug: string; name: string };
+
 type RepliesGridProps = {
   supportReplies: ReplyNode[];
   refuteReplies: ReplyNode[];
   onBadgeClick?: (tripleTermIds: string[], postId: string) => void;
+  onReply?: (stance: "SUPPORTS" | "REFUTES") => void;
   sentimentMap?: SentimentMap;
-  themeName?: string;
+  themes?: ThemeItem[];
 };
 
 export function RepliesGrid({
   supportReplies,
   refuteReplies,
   onBadgeClick,
+  onReply,
   sentimentMap,
-  themeName,
+  themes,
 }: RepliesGridProps) {
   return (
     <section className={styles.section}>
@@ -26,17 +30,19 @@ export function RepliesGrid({
           stance="supports"
           title="Supports"
           replies={supportReplies}
+          onAdd={onReply ? () => onReply("SUPPORTS") : undefined}
           onBadgeClick={onBadgeClick}
           sentimentMap={sentimentMap}
-          themeName={themeName}
+          themes={themes}
         />
         <ReplyColumn
           stance="refutes"
           title="Refutes"
           replies={refuteReplies}
+          onAdd={onReply ? () => onReply("REFUTES") : undefined}
           onBadgeClick={onBadgeClick}
           sentimentMap={sentimentMap}
-          themeName={themeName}
+          themes={themes}
         />
       </div>
     </section>

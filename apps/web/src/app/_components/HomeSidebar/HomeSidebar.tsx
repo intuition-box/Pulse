@@ -25,7 +25,7 @@ export function HomeSidebar({ themes }: HomeSidebarProps) {
           <div className={styles.categoriesList}>
             {themes.map((cat) => (
               <Link key={cat.slug} href={`/themes/${cat.slug}`} className={styles.categoryLink}>
-                <ThemeBadge size="lg">{cat.name}</ThemeBadge>
+                <ThemeBadge size="sm" slug={cat.slug}>{cat.name}</ThemeBadge>
               </Link>
             ))}
           </div>

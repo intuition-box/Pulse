@@ -12,6 +12,8 @@ import type { Author } from "@/lib/types/reply";
 import { formatRelativeTime } from "../FeedPost/helpers";
 import styles from "./ReplyCard.module.css";
 
+type ThemeItem = { slug: string; name: string };
+
 export type ReplyCardProps = {
   id: string;
   body: string;
@@ -20,12 +22,14 @@ export type ReplyCardProps = {
   mainTripleTermId?: string;
   author?: Author;
   stance?: "SUPPORTS" | "REFUTES" | null;
-  themeName?: string;
+  themes?: ThemeItem[];
   variant?: "compact" | "default";
   sentimentData?: SentimentData | null;
   onBadgeClick?: (tripleTermIds: string[], postId: string) => void;
   mainTripleTermIds?: string[];
-  onReply?: () => void;
+  onReply?: (stance: "SUPPORTS" | "REFUTES") => void;
+  /** When set, reply buttons stay visible with the active one highlighted. */
+  activeReplyStance?: "SUPPORTS" | "REFUTES" | null;
   showBorder?: boolean;
 };
 
@@ -37,12 +41,13 @@ export function ReplyCard({
   mainTripleTermId,
   author,
   stance,
-  themeName,
+  themes,
   variant = "default",
   sentimentData,
   onBadgeClick,
   mainTripleTermIds,
   onReply,
+  activeReplyStance,
   showBorder = true,
 }: ReplyCardProps) {
   const stanceClass =
@@ -58,9 +63,18 @@ export function ReplyCard({
           {variant === "compact" && (
             <span className={styles.time}>{formatRelativeTime(createdAt)}</span>
           )}
-          {(themeName || (mainTripleTermId && sentimentData)) && (
+          {((themes && themes.length > 0) || (mainTripleTermId && sentimentData)) && (
             <div className={styles.headerRight}>
-              {variant === "compact" && themeName && <ThemeBadge size="sm">{themeName}</ThemeBadge>}
+              {variant === "compact" && themes && themes.length > 0 && (
+                <>
+                  {themes.slice(0, 2).map((t) => (
+                    <ThemeBadge key={t.slug} size="sm" slug={t.slug}>{t.name}</ThemeBadge>
+                  ))}
+                  {themes.length > 2 && (
+                    <span className={styles.moreThemes}>+{themes.length - 2}</span>
+                  )}
+                </>
+              )}
               {mainTripleTermId && sentimentData && (
                 <SentimentCircle
                   supportPct={sentimentData.supportPct}
@@ -74,21 +88,30 @@ export function ReplyCard({
         <p className={variant === "compact" ? styles.bodyCompact : styles.body}>{body}</p>
       </Link>
       <div className={styles.actions}>
-        <div className={`${styles.countReplyZone} ${onReply ? styles.hasSwap : ""}`}>
+        <div className={`${styles.countReplyZone} ${onReply ? styles.hasSwap : ""} ${activeReplyStance ? styles.swapLocked : ""}`}>
           <span className={styles.replyCount}>
             <MessageSquare size={12} />
             {replyCount}
           </span>
           {onReply && (
-            <button
-              type="button"
-              className={styles.replyBtn}
-              onClick={onReply}
-              aria-label="Reply to this post"
-            >
-              <MessageSquare size={12} />
-              Reply
-            </button>
+            <div className={styles.replyBtns}>
+              <button
+                type="button"
+                className={`${styles.replyBtn} ${styles.replyBtnSupport} ${activeReplyStance === "SUPPORTS" ? styles.replyBtnActive : ""}`}
+                onClick={() => onReply("SUPPORTS")}
+                aria-label="Support this post"
+              >
+                Support
+              </button>
+              <button
+                type="button"
+                className={`${styles.replyBtn} ${styles.replyBtnRefute} ${activeReplyStance === "REFUTES" ? styles.replyBtnActive : ""}`}
+                onClick={() => onReply("REFUTES")}
+                aria-label="Refute this post"
+              >
+                Refute
+              </button>
+            </div>
           )}
         </div>
         {mainTripleTermIds && mainTripleTermIds.length > 0 && (

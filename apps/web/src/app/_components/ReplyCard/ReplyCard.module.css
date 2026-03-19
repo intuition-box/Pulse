@@ -53,9 +53,16 @@
 .headerRight {
   display: flex;
   align-items: center;
-  gap: var(--space-1-5);
+  gap: var(--space-2);
   margin-left: auto;
   flex-shrink: 0;
+}
+
+.moreThemes {
+  font-size: var(--font-size-2xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .body {
@@ -96,7 +103,7 @@
 }
 
 .countReplyZone.hasSwap {
-  min-width: 5rem;
+  min-width: 10rem;
 }
 
 .replyCount {
@@ -109,10 +116,19 @@
   transition: opacity var(--transition-fast);
 }
 
+.replyBtns {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
 .replyBtn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
   padding: 2px var(--space-2);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
@@ -124,16 +140,12 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
   cursor: pointer;
-  position: absolute;
-  inset: 0;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity var(--transition-fast), color var(--transition-fast),
-    border-color var(--transition-fast);
+  white-space: nowrap;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
 }
 
-.card:hover .hasSwap .replyBtn,
-.card:focus-within .hasSwap .replyBtn {
+.card:hover .hasSwap .replyBtns,
+.card:focus-within .hasSwap .replyBtns {
   opacity: 1;
 }
 
@@ -142,9 +154,25 @@
   opacity: 0;
 }
 
-.replyBtn:hover {
-  color: var(--color-accent);
-  border-color: var(--color-accent);
+.replyBtnSupport:hover,
+.replyBtnSupport.replyBtnActive {
+  color: var(--stance-supports-text);
+  border-color: var(--stance-supports-accent);
+}
+
+.replyBtnRefute:hover,
+.replyBtnRefute.replyBtnActive {
+  color: var(--stance-refutes-text);
+  border-color: var(--stance-refutes-accent);
+}
+
+/* When composer is open, keep buttons visible */
+.swapLocked .replyBtns {
+  opacity: 1;
+}
+
+.swapLocked .replyCount {
+  opacity: 0;
 }
 
 .noBorder {
@@ -166,7 +194,7 @@
 }
 
 @media (hover: none) {
-  .hasSwap .replyBtn {
+  .hasSwap .replyBtns {
     opacity: 1;
     position: static;
   }

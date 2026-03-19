@@ -8,10 +8,13 @@ import { VoteSection } from "@/components/SentimentBar/VoteSection";
 import { ConnectedThumbVote } from "@/components/ThumbVote";
 import { useSentimentBatch } from "@/hooks/useSentimentBatch";
 import { TripleInspector } from "@/components/TripleInspector/TripleInspector";
-import { Button } from "@/components/Button/Button";
 import { useComposerFlow } from "@/features/post/ExtractionWorkspace/hooks/useComposerFlow";
 import { ComposerBlock } from "@/features/post/ExtractionWorkspace/ComposerBlock";
+import { labels } from "@/lib/vocabulary";
+import { ThemeRow } from "@/components/ThemeSelector/ThemeRow";
 import { useToast } from "@/components/Toast/ToastContext";
+import { useCreateTheme } from "@/features/theme/useCreateTheme";
+import { useAddPostTheme } from "@/features/theme/useAddPostTheme";
 import type { ReplyNode } from "@/lib/types/reply";
 
 import { AncestorBreadcrumbs } from "./AncestorBreadcrumbs";
@@ -31,10 +34,10 @@ type PostPageClientProps = {
       role: "MAIN" | "SUPPORTING";
     }[];
   };
-  theme: {
+  themes: {
     slug: string;
     name: string;
-  };
+  }[];
   breadcrumbs: {
     id: string;
     body: string;
@@ -42,12 +45,17 @@ type PostPageClientProps = {
   replies: ReplyNode[];
 };
 
-export function PostPageClient({ post, theme, breadcrumbs, replies }: PostPageClientProps) {
+export function PostPageClient({ post, themes: initialThemes, breadcrumbs, replies }: PostPageClientProps) {
   const { addToast } = useToast();
   const isMobile = useIsMobile();
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [inspectorTriples, setInspectorTriples] = useState(post.tripleLinks);
   const [voteRefreshKey, setVoteRefreshKey] = useState(0);
+  const [themes, setThemes] = useState(initialThemes);
+  const [replyThemes, setReplyThemes] = useState(initialThemes);
+
+  const { createTheme, isCreating: isCreatingTheme } = useCreateTheme();
+  const { addThemeToPost, isAdding: isAddingTheme, error: addThemeError } = useAddPostTheme();
 
   const handleVoteSuccess = useCallback(() => {
     setVoteRefreshKey((k) => k + 1);
@@ -55,11 +63,63 @@ export function PostPageClient({ post, theme, breadcrumbs, replies }: PostPageCl
 
   const parentMainTripleTermId = post.tripleLinks.find(t => t.role === "MAIN")?.termId ?? null;
 
+  const handleCreateTheme = useCallback(async (name: string) => {
+    const result = await createTheme(name, undefined, null);
+    if (!result) return null;
+    return { slug: result.slug, name: result.name };
+  }, [createTheme]);
+
+  const handleAddTheme = useCallback(async (theme: { slug: string; name: string }) => {
+    const result = await addThemeToPost({
+      postId: post.id,
+      themeSlug: theme.slug,
+      themeName: theme.name,
+      mainTripleTermId: parentMainTripleTermId,
+    });
+    if (result) {
+      setThemes((prev) => [...prev, { slug: result.slug, name: result.name }]);
+      addToast("Theme added", "success");
+      return true;
+    }
+    return false;
+  }, [addThemeToPost, post.id, parentMainTripleTermId, addToast]);
+
+  const handleLinkAtom = useCallback(async (atom: { id: string; label: string }) => {
+    const addResult = await addThemeToPost({
+      postId: post.id,
+      themeSlug: "",
+      themeName: atom.label,
+      mainTripleTermId: parentMainTripleTermId,
+      atomTermId: atom.id,
+      createThemeInDb: true,
+    });
+    if (addResult) {
+      setThemes((prev) => [...prev, { slug: addResult.slug, name: addResult.name }]);
+      addToast("Theme added", "success");
+    }
+  }, [addThemeToPost, post.id, parentMainTripleTermId, addToast]);
+
+  const handleCreateAndAddTheme = useCallback(async (name: string) => {
+    const result = await createTheme(name, undefined, null);
+    if (!result) return;
+    const addResult = await addThemeToPost({
+      postId: post.id,
+      themeSlug: result.slug,
+      themeName: result.name,
+      mainTripleTermId: parentMainTripleTermId,
+    });
+    if (addResult) {
+      setThemes((prev) => [...prev, { slug: addResult.slug, name: addResult.name }]);
+      addToast("Theme added", "success");
+    }
+  }, [createTheme, addThemeToPost, post.id, parentMainTripleTermId, addToast]);
+
   const composerFlow = useComposerFlow({
-    themeSlug: theme.slug,
+    themeSlug: replyThemes[0]?.slug ?? themes[0]?.slug ?? "",
+    themeSlugs: replyThemes.map((t) => t.slug),
     parentPostId: post.id,
     parentMainTripleTermId,
-    themeTitle: theme.name,
+    themeTitle: replyThemes[0]?.name ?? themes[0]?.name ?? "",
     parentClaim: post.body,
     onPublishSuccess: (postId) => {
       addToast("Reply created", "success", { label: "See", href: `/posts/${postId}` }, 6000);
@@ -73,9 +133,9 @@ export function PostPageClient({ post, theme, breadcrumbs, replies }: PostPageCl
   );
   const { data: sentimentMap } = useSentimentBatch(replyTripleIds);
 
-  function handleReplyClick() {
+  function handleReplyClick(stance: "SUPPORTS" | "REFUTES") {
     setInspectorOpen(false);
-    composerFlow.openComposer();
+    composerFlow.openComposer(stance);
   }
 
   function handleOpenInspector() {
@@ -126,7 +186,12 @@ export function PostPageClient({ post, theme, breadcrumbs, replies }: PostPageCl
 
           <FocusCard
             post={post}
-            themeName={theme.name}
+            themes={themes}
+            onAddTheme={handleAddTheme}
+            onLinkAtom={handleLinkAtom}
+            onCreateTheme={handleCreateAndAddTheme}
+            isAddingTheme={isAddingTheme || isCreatingTheme}
+            addThemeError={addThemeError}
             onOpenInspector={handleOpenInspector}
             thumbSlot={parentMainTripleTermId ? (
               <ConnectedThumbVote tripleTermId={parentMainTripleTermId} size="md" onVoteSuccess={handleVoteSuccess} />
@@ -137,20 +202,25 @@ export function PostPageClient({ post, theme, breadcrumbs, replies }: PostPageCl
             )}
           </FocusCard>
 
-          {!composerFlow.composerOpen && (
-            <div className={styles.replyAction}>
-              <Button variant="secondary" size="sm" onClick={handleReplyClick}>
-                Reply
-              </Button>
-            </div>
-          )}
-
-          <ComposerBlock composerFlow={composerFlow} />
+          <ComposerBlock
+            composerFlow={composerFlow}
+            themeSlot={
+              <ThemeRow
+                selected={replyThemes}
+                onChange={setReplyThemes}
+                min={1}
+                onCreateTheme={handleCreateTheme}
+              />
+            }
+            extraDisabled={replyThemes.length === 0}
+            extraDisabledHint={replyThemes.length === 0 ? labels.selectAtLeastOneTheme : undefined}
+          />
 
           <RepliesGrid
             supportReplies={supportReplies}
             refuteReplies={refuteReplies}
             onBadgeClick={handleReplyBadgeClick}
+            onReply={handleReplyClick}
             sentimentMap={sentimentMap}
           />
         </div>

@@ -43,6 +43,10 @@
   color: var(--text-primary);
 }
 
+.themeSlot {
+  margin-bottom: calc(-1 * var(--space-1));
+}
+
 .textarea {
   width: 100%;
   min-height: 72px;
@@ -93,36 +97,25 @@
   to { transform: rotate(360deg); }
 }
 
-.stanceToggle {
-  display: flex;
-  gap: 2px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-}
-
-.stanceToggleBtn {
-  padding: 0.125rem var(--space-2);
-  border: none;
-  background: transparent;
-  font-family: inherit;
-  font-size: var(--font-size-tiny);
+.stanceHint {
+  font-size: 0.6rem;
   font-weight: 600;
-  cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
-  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
-.stanceToggleBtn:hover {
-  background: var(--bg-hover);
-}
-
-.stanceToggleSupports.stanceToggleActive {
-  background: color-mix(in srgb, var(--stance-supports-accent) 20%, transparent);
+.stanceHint[data-stance="supports"] {
   color: var(--stance-supports-text);
 }
 
-.stanceToggleRefutes.stanceToggleActive {
-  background: color-mix(in srgb, var(--stance-refutes-accent) 20%, transparent);
+.stanceHint[data-stance="refutes"] {
   color: var(--stance-refutes-text);
+}
+
+.textareaSupports {
+  border-left: 3px solid var(--stance-supports-accent);
+}
+
+.textareaRefutes {
+  border-left: 3px solid var(--stance-refutes-accent);
 }

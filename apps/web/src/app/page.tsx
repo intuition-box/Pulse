@@ -78,20 +78,21 @@ async function loadMoreReplies(
 }
 
 export default async function HomePage() {
-  // 1. Trending: root posts with most replies
+  // 1. Hot debates pool: root posts with most replies (filtered client-side by sentiment)
   const trendingRaw = await prisma.post.findMany({
     where: { parentPostId: null },
     orderBy: { replies: { _count: "desc" } },
-    take: 4,
+    take: 20,
     select: {
       id: true,
       body: true,
-      theme: { select: { slug: true, name: true } },
+      postThemes: { select: { theme: { select: { slug: true, name: true } } } },
+      tripleLinks: { where: { role: "MAIN" }, select: { termId: true } },
       replies: { select: { id: true } },
     },
   });
 
-  // 2. Feed: root posts with 2 reply previews
+  // 2. Feed: root posts with 2 reply previews, sorted by latest activity
   const feedRaw = await prisma.post.findMany({
     where: { parentPostId: null },
     orderBy: { createdAt: "desc" },
@@ -101,7 +102,7 @@ export default async function HomePage() {
       body: true,
       createdAt: true,
       user: { select: { displayName: true, address: true, avatar: true } },
-      theme: { select: { slug: true, name: true } },
+      postThemes: { select: { theme: { select: { slug: true, name: true } } } },
       tripleLinks: { where: { role: "MAIN" }, select: { termId: true } },
       _count: { select: { replies: true } },
       replies: {
@@ -112,68 +113,75 @@ export default async function HomePage() {
     },
   });
 
-  // 3. Hot topics: top 5 root posts by reply count
-  const hotTopicsRaw = await prisma.post.findMany({
-    where: { parentPostId: null },
-    orderBy: { replies: { _count: "desc" } },
-    take: 5,
-    select: {
-      id: true,
-      body: true,
-      replies: { select: { id: true } },
-    },
-  });
+  // 3. Fetch latest reply date per thread (for "latest activity" sort)
+  const rootIds = feedRaw.map((p) => p.id);
+  const latestReplies = rootIds.length > 0
+    ? await prisma.post.groupBy({
+        by: ["parentPostId"],
+        where: { parentPostId: { in: rootIds } },
+        _max: { createdAt: true },
+      })
+    : [];
+  const latestReplyMap = new Map(
+    latestReplies
+      .filter((r) => r.parentPostId !== null)
+      .map((r) => [r.parentPostId!, r._max.createdAt]),
+  );
 
   // 4. Themes with post counts
   const themesRaw = await prisma.theme.findMany({
     select: {
       slug: true,
       name: true,
-      _count: { select: { posts: true } },
+      _count: { select: { postThemes: true } },
     },
-    orderBy: { posts: { _count: "desc" } },
+    orderBy: { postThemes: { _count: "desc" } },
   });
 
   // Serialize for client
   const trending = trendingRaw.map((p) => ({
     id: p.id,
     body: p.body,
-    theme: p.theme,
+    themes: p.postThemes.map((pt) => pt.theme),
     replyCount: p.replies.length,
+    mainTripleTermId: p.tripleLinks[0]?.termId ?? null,
   }));
 
-  const feed = feedRaw.map((p) => ({
-    id: p.id,
-    body: p.body,
-    createdAt: p.createdAt.toISOString(),
-    user: {
-      displayName: p.user.displayName,
-      address: p.user.address,
-      avatar: p.user.avatar,
-    },
-    replyCount: p._count.replies,
-    theme: p.theme,
-    mainTripleTermIds: p.tripleLinks.map((l) => l.termId),
-    replyPreviews: p.replies.map(serializeReply),
-  }));
+  const feed = feedRaw.map((p) => {
+    const latestReply = latestReplyMap.get(p.id);
+    const latestActivityAt = latestReply && latestReply > p.createdAt
+      ? latestReply.toISOString()
+      : p.createdAt.toISOString();
 
-  const hotTopics = hotTopicsRaw.map((p) => ({
-    id: p.id,
-    body: p.body,
-    replyCount: p.replies.length,
-  }));
+    return {
+      id: p.id,
+      body: p.body,
+      createdAt: p.createdAt.toISOString(),
+      user: {
+        displayName: p.user.displayName,
+        address: p.user.address,
+        avatar: p.user.avatar,
+      },
+      replyCount: p._count.replies,
+      stance: null as "SUPPORTS" | "REFUTES" | null,
+      themes: p.postThemes.map((pt) => pt.theme),
+      mainTripleTermIds: p.tripleLinks.map((l) => l.termId),
+      replyPreviews: p.replies.map(serializeReply),
+      latestActivityAt,
+      parentContext: null,
+    };
+  });
 
   const themes = themesRaw.map((t) => ({
     slug: t.slug,
     name: t.name,
-    postCount: t._count.posts,
+    postCount: t._count.postThemes,
   }));
 
   return (
     <HomePageClient
       trending={trending}
       feed={feed}
-      hotTopics={hotTopics}
       themes={themes}
       loadMoreReplies={loadMoreReplies}
     />

@@ -6,12 +6,14 @@ import type { ReplyTarget } from "./FeedThread";
 type ReplyPreviewProps = {
   reply: FeedReplyPreview;
   themeSlug: string;
+  themes: { slug: string; name: string }[];
   onBadgeClick?: (tripleTermIds: string[], postId: string) => void;
   onReply?: (target: ReplyTarget) => void;
+  activeReplyStance?: "SUPPORTS" | "REFUTES" | null;
   sentimentMap?: SentimentMap;
 };
 
-export function ReplyPreview({ reply, themeSlug, onBadgeClick, onReply, sentimentMap }: ReplyPreviewProps) {
+export function ReplyPreview({ reply, themeSlug, themes, onBadgeClick, onReply, activeReplyStance, sentimentMap }: ReplyPreviewProps) {
   const mainTripleTermId = reply.mainTripleTermIds?.[0] ?? null;
 
   return (
@@ -27,8 +29,8 @@ export function ReplyPreview({ reply, themeSlug, onBadgeClick, onReply, sentimen
       mainTripleTermIds={reply.mainTripleTermIds}
       sentimentData={mainTripleTermId ? sentimentMap?.[mainTripleTermId] ?? null : null}
       onBadgeClick={onBadgeClick}
-
-      onReply={onReply ? () => onReply({ postId: reply.id, themeSlug, mainTripleTermId }) : undefined}
+      onReply={onReply ? (stance) => onReply({ postId: reply.id, themeSlug, themes, mainTripleTermId, stance }) : undefined}
+      activeReplyStance={activeReplyStance}
     />
   );
 }

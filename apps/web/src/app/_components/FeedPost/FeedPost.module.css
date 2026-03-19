@@ -46,6 +46,35 @@
   text-decoration: underline;
 }
 
+/* ── Parent context ("reply to …") ───────────────────────────────────── */
+
+.parentContext {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-tiny);
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.parentContextIcon {
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.parentContextText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.parentContext:hover .parentContextText {
+  text-decoration: underline;
+  color: var(--text-secondary);
+}
+
 @media (min-width: 769px) {
   .repliesSection {
     padding-left: 52px;

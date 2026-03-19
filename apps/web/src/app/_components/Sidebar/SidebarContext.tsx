@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState, type PropsWithChildren } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type PropsWithChildren } from "react";
 
 type SidebarContextValue = {
   collapsed: boolean;
@@ -19,10 +19,10 @@ export function useSidebar() {
 const STORAGE_KEY = "sidebar-collapsed";
 
 export function SidebarProvider({ children }: PropsWithChildren) {
-  const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem(STORAGE_KEY) === "true";
-  });
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    setCollapsed(localStorage.getItem(STORAGE_KEY) === "true");
+  }, []);
 
   const toggle = useCallback(() => {
     setCollapsed((prev) => {

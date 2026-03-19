@@ -6,9 +6,3 @@
   gap: var(--space-6);
 }
 
-/* ── Reply action ──────────────────────────────────────────────────────── */
-
-.replyAction {
-  display: flex;
-  justify-content: center;
-}
