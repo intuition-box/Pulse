@@ -1,5 +1,5 @@
 import { normalize, tokenSimilarity } from "../utils/similarity.js";
-import { ensurePeriod } from "./text.js";
+
 import { parseCausal } from "./parse.js";
 import { trackFallback } from "./fallbackTracker.js";
 import { shouldSplitOnAnd } from "./andSplitClassifier.js";
@@ -104,7 +104,7 @@ function projectReplyCausalToReasons(
       }
     }
 
-    return { ...claim, text: ensurePeriod(reason) };
+    return { ...claim, text: reason.trim() };
   });
 }
 
@@ -128,7 +128,7 @@ function splitCompoundAndClaims(claims: DecomposedClaim[]): DecomposedClaim[] {
     for (const part of result.parts) {
       out.push({
         ...claim,
-        text: ensurePeriod(part),
+        text: part.trim(),
         group: nextGroup++,
       });
     }

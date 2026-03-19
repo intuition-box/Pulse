@@ -11,7 +11,7 @@ import type { DerivedTriple, ExtractionResult, RejectionCode, ExtractionOptions 
 import { retryWithBackoff, isLlmUnavailable } from "./utils/concurrency.js";
 import { runPreFilter } from "./agents/pre-filter.js";
 
-import { safeTrim, stripOuterQuotes, ensurePeriod } from "./helpers/text.js";
+import { safeTrim, stripOuterQuotes } from "./helpers/text.js";
 import { buildClaimPlans, type GraphResult } from "./helpers/claimPlanner.js";
 import { processClaimPlan, processClaimTree } from "./helpers/claimProcessor.js";
 import { canonicalizePreGraph, deduplicateGraphPlans, deduplicateGraphTreePlans, enforceRoles } from "./helpers/canonicalization.js";
@@ -243,7 +243,7 @@ export async function runExtraction(inputText: string, options: ExtractionOption
     const sentenceContext = [parentContext, prev, selectedSentence].filter(Boolean).join(" ");
 
     const canonicalized = canonicalizePreGraph(
-      decomposed.claims.map((c) => ({ ...c, text: ensurePeriod(c.text) })),
+      decomposed.claims.map((c) => ({ ...c, text: c.text.trim() })),
       { parentClaimText: parentContext, sourceSentence: selectedSentence },
     );
 

@@ -1,5 +1,5 @@
 import type { DecomposedClaim } from "../types.js";
-import { ensurePeriod, tokenize } from "./text.js";
+import { tokenize } from "./text.js";
 import { parseCausal } from "./parse.js";
 import { trackFallback } from "./fallbackTracker.js";
 
@@ -176,7 +176,7 @@ export function tryCausalTruncate(
       kind: "split-reason",
       beforeMarker: cleanBefore,
       marker,
-      reasons: parts.map((p) => ensurePeriod(`${cleanBefore} ${marker} ${p}`)),
+      reasons: parts.map((p) => `${cleanBefore} ${marker} ${p}`.trim()),
     };
   }
 
@@ -185,7 +185,7 @@ export function tryCausalTruncate(
   if (!isCoveredBySiblings(afterMarker, siblingClaims)) return null;
 
   let truncated = beforeMarker.replace(/[,;:]\s*$/, "").trim();
-  if (!truncated.endsWith(".")) truncated += ".";
+  truncated = truncated.replace(/\.\s*$/, "");
 
   return { kind: "truncate", text: truncated };
 }
