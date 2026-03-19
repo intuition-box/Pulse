@@ -121,18 +121,12 @@ export async function validateSubmissionRequest(
 
     const parent = await prisma.post.findUnique({
       where: { id: normalizedParentPostId },
-      select: { themeSlug: true, body: true },
+      select: { body: true },
     });
     if (!parent) {
       return {
         ok: false,
         response: NextResponse.json({ error: "Parent post not found." }, { status: 404 }),
-      };
-    }
-    if (parent.themeSlug !== themeSlug) {
-      return {
-        ok: false,
-        response: NextResponse.json({ error: "Parent post belongs to a different theme." }, { status: 400 }),
       };
     }
 

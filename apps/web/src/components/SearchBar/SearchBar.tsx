@@ -14,9 +14,7 @@ type PostSuggestion = {
     displayName: string | null;
     address: string;
   };
-  theme: {
-    name: string;
-  };
+  themes: { slug: string; name: string }[];
 };
 
 type ThemeOption = { slug: string; name: string };
@@ -165,7 +163,9 @@ export function SearchBar() {
                 <span className={styles.suggestionUser}>
                   {post.user.displayName || `${post.user.address.slice(0, 6)}...`}
                 </span>
-                <ThemeBadge>{post.theme.name}</ThemeBadge>
+                {post.themes.map((t) => (
+                  <ThemeBadge key={t.slug} slug={t.slug}>{t.name}</ThemeBadge>
+                ))}
               </div>
               <div className={styles.suggestionBody}>{truncate(post.body, 80)}</div>
             </Link>

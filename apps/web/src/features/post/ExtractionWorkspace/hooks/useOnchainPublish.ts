@@ -79,6 +79,7 @@ type UseOnchainPublishParams = {
   visibleNestedProposals: NestedProposalDraft[];
   proposals: ProposalDraft[];
   themeAtomTermId: string | null;
+  themeSlugs: string[];
   mainRefByDraft: Map<string, MainRef | null>;
   derivedTriples: DerivedTripleDraft[];
   nestedRefLabels: Map<string, string>;
@@ -118,6 +119,7 @@ export function useOnchainPublish({
   visibleNestedProposals,
   proposals,
   themeAtomTermId,
+  themeSlugs,
   mainRefByDraft,
   derivedTriples,
   nestedRefLabels,
@@ -329,7 +331,29 @@ export function useOnchainPublish({
 
       const nestedAtomLabels = collectNestedAtomLabels(visibleNestedProposals);
       const derivedAtomLabels = derivedTriples.flatMap((dt) => [dt.subject, dt.predicate, dt.object]);
-      const allExtraAtomLabels = [...nestedAtomLabels, ...derivedAtomLabels];
+
+      // Resolve theme atoms for multi-theme publish
+      type ResolvedTheme = { slug: string; name: string; atomTermId: string | null };
+      let resolvedThemes: ResolvedTheme[] = [];
+      const themeAtomLabelsForCreation: string[] = [];
+      if (themeSlugs.length > 0 && !extractionJob.parentPostId) {
+        const themeRes = await fetch("/api/themes/resolve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slugs: themeSlugs }),
+        });
+        if (themeRes.ok) {
+          const themeData = await themeRes.json();
+          resolvedThemes = themeData.themes ?? [];
+        }
+        for (const t of resolvedThemes) {
+          if (!t.atomTermId) {
+            themeAtomLabelsForCreation.push(t.name);
+          }
+        }
+      }
+
+      const allExtraAtomLabels = [...nestedAtomLabels, ...derivedAtomLabels, ...themeAtomLabelsForCreation];
 
       let derivedTxHash: string | null = null;
 
@@ -340,6 +364,26 @@ export function useOnchainPublish({
       if (toResolve.length > 0 || visibleNestedProposals.length > 0 || derivedTriples.length > 0) {
         const atomResult = await resolveAtoms(toResolve, ctx, allExtraAtomLabels);
         atomTxHash = atomResult.atomTxHash;
+
+        // Update theme atoms that were just created on-chain
+        if (themeAtomLabelsForCreation.length > 0) {
+          const updates: { slug: string; atomTermId: string }[] = [];
+          for (const theme of resolvedThemes) {
+            if (theme.atomTermId) continue;
+            const resolvedId = atomResult.atomMap.get(theme.name.toLowerCase());
+            if (resolvedId) {
+              updates.push({ slug: theme.slug, atomTermId: resolvedId });
+              theme.atomTermId = resolvedId;
+            }
+          }
+          if (updates.length > 0) {
+            await fetch("/api/themes/update-atoms", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ updates }),
+            });
+          }
+        }
 
         setPublishStep("claims");
 
@@ -413,6 +457,8 @@ export function useOnchainPublish({
 
       let tagTxHash: string | null = null;
       const seenTagTriples = new Set<string>();
+
+      // Original tag entries from publishPlan (single theme)
       for (const entry of publishPlan.metadata.tagEntries) {
         const mainRef = mainRefByDraft.get(entry.draftId) ?? null;
         const mainTripleTermId = resolveMainTripleTermId(mainRef, resolvedByIndex, resolvedNestedTriples);
@@ -431,6 +477,27 @@ export function useOnchainPublish({
           themeAtomTermId: entry.themeAtomTermId,
         });
       }
+
+      // Multi-theme: add tag entries for additional resolved themes
+      if (resolvedThemes.length > 0 && !extractionJob.parentPostId) {
+        for (const draft of draftPosts) {
+          const mainRef = mainRefByDraft.get(draft.id) ?? null;
+          const mainTripleTermId = resolveMainTripleTermId(mainRef, resolvedByIndex, resolvedNestedTriples);
+          if (!mainTripleTermId) continue;
+          for (const theme of resolvedThemes) {
+            if (!theme.atomTermId) continue;
+            const dedupeKey = `${mainTripleTermId}-${theme.atomTermId}`;
+            if (seenTagTriples.has(dedupeKey)) continue;
+            seenTagTriples.add(dedupeKey);
+            resolvedPlan.tagEntries.push({
+              mainTripleTermId,
+              mainProposalId: draft.mainProposalId ?? draft.id,
+              themeAtomTermId: theme.atomTermId,
+            });
+          }
+        }
+      }
+
       if (resolvedPlan.tagEntries.length > 0) {
         const tagResult = await resolveTagTriples({ entries: resolvedPlan.tagEntries, ctx });
         tagTxHash = tagResult.tagTxHash;
@@ -488,6 +555,7 @@ export function useOnchainPublish({
         submissionId: extractionJob.id,
         idempotencyKey,
         posts: draftPayloads,
+        themeSlugs: themeSlugs.length > 0 ? themeSlugs : undefined,
         atomTxHash,
         tripleTxHash,
         derivedTxHash,

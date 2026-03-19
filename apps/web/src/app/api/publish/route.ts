@@ -39,6 +39,7 @@ export async function POST(request: Request) {
       submissionId,
       idempotencyKey,
       posts: rawPosts,
+      themeSlugs: rawThemeSlugs,
       tripleTxHash,
       nestedTxHash,
       stanceTxHash,
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
       submissionId?: string;
       idempotencyKey?: string;
       posts?: unknown[];
+      themeSlugs?: string[];
       tripleTxHash?: string | null;
       nestedTxHash?: string | null;
       stanceTxHash?: string | null;
@@ -216,19 +218,30 @@ export async function POST(request: Request) {
       }
     }
 
+    // Resolve theme slugs: use payload themeSlugs if provided, fallback to submission.themeSlug
+    const effectiveThemeSlugs: string[] =
+      Array.isArray(rawThemeSlugs) && rawThemeSlugs.length > 0
+        ? rawThemeSlugs.filter((s): s is string => typeof s === "string" && s.length > 0)
+        : [submission.themeSlug];
+
     const result = await prisma.$transaction(async (tx) => {
       const createdPosts: CreatedPostRecord[] = [];
 
       for (const draftPost of validPosts) {
         const post = await tx.post.create({
           data: {
-            themeSlug: submission.themeSlug,
             userId: submission.userId,
             body: draftPost.body,
             publishedAt: new Date(),
             parentPostId: submission.parentPostId ?? undefined,
             stance: (draftPost.stance as Stance) ?? submission.stance ?? undefined,
             originSubmissionId: submission.id,
+            postThemes: {
+              createMany: {
+                data: effectiveThemeSlugs.map((slug) => ({ themeSlug: slug })),
+                skipDuplicates: true,
+              },
+            },
           },
         });
 

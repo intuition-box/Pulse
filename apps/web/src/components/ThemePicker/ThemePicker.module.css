@@ -1,0 +1,219 @@
+/* ── ThemePicker ──────────────────────────────────────────────────────── */
+
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.input {
+  width: 100%;
+  padding: var(--space-2) var(--space-2-5);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-muted);
+  color: var(--text-primary);
+  font-size: var(--font-size-small);
+  font-family: inherit;
+  transition: border-color var(--transition-fast);
+}
+
+.input::placeholder {
+  color: var(--text-muted);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+/* ── Results area ────────────────────────────────────────────────────── */
+
+.results {
+  max-height: 240px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+.divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: var(--space-1) 0;
+}
+
+.sectionLabel {
+  padding: var(--space-1) var(--space-2-5);
+  font-size: var(--font-size-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.hint {
+  padding: var(--space-2) var(--space-2-5);
+  font-size: var(--font-size-tiny);
+  color: var(--text-muted);
+}
+
+/* ── DB theme options ────────────────────────────────────────────────── */
+
+.themeOption {
+  width: 100%;
+  text-align: left;
+  padding: var(--space-1-5) var(--space-2-5);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.themeOption:hover {
+  background: var(--bg-muted);
+}
+
+/* ── Atom suggestion cards (matches AtomSuggestionInput style) ───────── */
+
+.atomCard {
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: var(--space-2) var(--space-2-5);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.atomCard:hover {
+  background: var(--bg-muted);
+  border-color: var(--border-default);
+}
+
+.atomCard:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.atomLabel {
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.atomMetrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.metric {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.metricLabel {
+  font-size: var(--font-size-2xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.metricValue {
+  font-size: var(--font-size-2xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.atomBottom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.atomSource {
+  font-size: var(--font-size-2xs);
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+  padding: var(--space-0-5) var(--space-2);
+}
+
+.atomId {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-2xs);
+  color: var(--text-muted);
+}
+
+/* ── Create new option ───────────────────────────────────────────────── */
+
+.createOption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-2-5);
+  margin-top: var(--space-1);
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--border-default);
+  background: transparent;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.createOption:hover {
+  background: color-mix(in srgb, var(--color-cyan-600) 8%, transparent);
+  border-color: var(--color-cyan-600);
+}
+
+.createOption:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.createIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--color-cyan-600);
+  color: var(--color-white);
+  font-size: var(--font-size-tiny);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.createText {
+  font-size: var(--font-size-small);
+  color: var(--text-secondary);
+}
+
+.createText strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}

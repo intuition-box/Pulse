@@ -30,14 +30,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ posts: [] });
     }
 
-    // Build where clause
     const where: Prisma.PostWhereInput = {
-      publishedAt: { not: null }, // Only published posts
+      publishedAt: { not: null },
       body: { contains: query, mode: "insensitive" },
     };
 
     if (themeSlug) {
-      where.themeSlug = themeSlug;
+      where.postThemes = { some: { themeSlug } };
     }
 
     // Filter by stance directly on Post (source of truth since Phase 0 migration)
@@ -57,10 +56,9 @@ export async function POST(request: Request) {
             avatar: true,
           },
         },
-        theme: {
+        postThemes: {
           select: {
-            slug: true,
-            name: true,
+            theme: { select: { slug: true, name: true } },
           },
         },
         tripleLinks: {
@@ -99,10 +97,7 @@ export async function POST(request: Request) {
         displayName: post.user.displayName,
         avatar: post.user.avatar,
       },
-      theme: {
-        slug: post.theme.slug,
-        name: post.theme.name,
-      },
+      themes: post.postThemes.map((pt) => ({ slug: pt.theme.slug, name: pt.theme.name })),
       mainTripleTermIds: post.tripleLinks.map((l) => l.termId),
       isReply: post.parentPostId !== null,
       parent: post.parent ? {

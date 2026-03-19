@@ -32,7 +32,7 @@ model Theme {
   description String?
   name        String
   atomTermId  String?      @unique // Intuition atom term ID (on-chain)
-  posts       Post[]
+  postThemes  PostTheme[]
   submissions Submission[]
 }
 
@@ -45,23 +45,35 @@ model Post {
   createdAt           DateTime         @default(now())
   publishedAt         DateTime?
   parentPostId        String?
-  themeSlug           String
   userId              String
   parent              Post?            @relation("Replies", fields: [parentPostId], references: [id])
   replies             Post[]           @relation("Replies")
-  theme               Theme            @relation(fields: [themeSlug], references: [slug])
   user                User             @relation(fields: [userId], references: [id])
   stance              Stance?
   originSubmissionId  String?
+  postThemes          PostTheme[]
   tripleLinks         PostTripleLink[]
   publishedSubmission Submission?      @relation("PublishedSubmission")
   childSubmissions    Submission[]     @relation("ParentSubmission")
   originSubmission    Submission?      @relation("OriginSubmission", fields: [originSubmissionId], references: [id])
 
-  @@index([themeSlug, createdAt])
+  @@index([createdAt])
   @@index([userId, createdAt])
   @@index([parentPostId])
   @@index([originSubmissionId])
+}
+
+/// PostTheme connects Posts to Themes (many-to-many)
+/// A post can belong to multiple themes, all equivalent (no hierarchy)
+model PostTheme {
+  id        String @id @default(uuid())
+  postId    String
+  themeSlug String
+  post      Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  theme     Theme  @relation(fields: [themeSlug], references: [slug])
+
+  @@unique([postId, themeSlug])
+  @@index([themeSlug])
 }
 
 /// PostTripleLink connects Posts to published Intuition triples

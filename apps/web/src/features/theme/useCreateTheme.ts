@@ -12,6 +12,7 @@ import {
 } from "@0xintuition/protocol";
 
 import { intuitionTestnet } from "@/lib/chain";
+import { parseTxError } from "@/lib/getErrorMessage";
 import { useSessionAuth } from "@/features/post/ExtractionWorkspace/hooks/useSessionAuth";
 import { sdkWriteConfig, sdkReadConfig } from "@/features/post/ExtractionWorkspace/publish";
 
@@ -157,8 +158,9 @@ export function useCreateTheme(): UseCreateThemeReturn {
       router.refresh();
       return result;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to create theme.";
-      setError(msg);
+      const raw = err instanceof Error ? err.message : "Failed to create theme.";
+      const { short } = parseTxError(raw);
+      setError(short);
       return null;
     } finally {
       setIsCreating(false);

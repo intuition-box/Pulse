@@ -18,14 +18,13 @@ export async function GET() {
     orderBy: { slug: "asc" },
   });
 
-  // Count root posts per theme using aggregation (not loading all posts)
-  const rootCounts = await prisma.post.groupBy({
+  const rootCounts = await prisma.postTheme.groupBy({
     by: ["themeSlug"],
-    where: { parentPostId: null },
-    _count: { id: true },
+    where: { post: { parentPostId: null } },
+    _count: { postId: true },
   });
 
-  const rootCountMap = new Map(rootCounts.map(r => [r.themeSlug, r._count.id]));
+  const rootCountMap = new Map(rootCounts.map(r => [r.themeSlug, r._count.postId]));
 
   return NextResponse.json({
     themes: themes.map((theme) => ({
@@ -49,7 +48,7 @@ function toSlug(name: string): string {
 }
 
 async function createThemeWithUniqueSlug(
-  data: { name: string; description: string | null; atomTermId: string },
+  data: { name: string; description: string | null; atomTermId: string | null },
 ) {
   const baseSlug = toSlug(data.name);
   if (!baseSlug) throw new Error("Name must produce a valid slug.");
@@ -127,27 +126,28 @@ export async function POST(request: Request) {
       if (d.length > 0) trimmedDescription = d;
     }
 
-    // Validate atomTermId
-    if (!atomTermId || typeof atomTermId !== "string" || !HEX_ID_REGEX.test(atomTermId)) {
-      return NextResponse.json(
-        { error: "atomTermId must be a valid hex string (0x...)." },
-        { status: 400 },
-      );
-    }
-
-    // Check for atomTermId collision (explicit 409 instead of opaque P2002)
-    const existingTheme = await prisma.theme.findUnique({ where: { atomTermId } });
-    if (existingTheme) {
-      return NextResponse.json(
-        { error: `This atom is already linked to the theme "${existingTheme.name}".` },
-        { status: 409 },
-      );
+    let validatedAtomTermId: string | null = null;
+    if (atomTermId != null && atomTermId !== "") {
+      if (typeof atomTermId !== "string" || !HEX_ID_REGEX.test(atomTermId)) {
+        return NextResponse.json(
+          { error: "atomTermId must be a valid hex string (0x...)." },
+          { status: 400 },
+        );
+      }
+      const existingTheme = await prisma.theme.findUnique({ where: { atomTermId } });
+      if (existingTheme) {
+        return NextResponse.json(
+          { error: `This atom is already linked to the theme "${existingTheme.name}".` },
+          { status: 409 },
+        );
+      }
+      validatedAtomTermId = atomTermId;
     }
 
     const theme = await createThemeWithUniqueSlug({
       name: trimmedName,
       description: trimmedDescription,
-      atomTermId,
+      atomTermId: validatedAtomTermId,
     });
 
     return NextResponse.json({

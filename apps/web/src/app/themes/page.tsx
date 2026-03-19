@@ -14,12 +14,12 @@ export default async function ThemesIndexPage() {
   });
 
   // Count only root posts (not replies) per theme — aligned with /api/themes
-  const rootCounts = await prisma.post.groupBy({
+  const rootCounts = await prisma.postTheme.groupBy({
     by: ["themeSlug"],
-    where: { parentPostId: null },
-    _count: { id: true },
+    where: { post: { parentPostId: null } },
+    _count: { postId: true },
   });
-  const rootCountMap = new Map(rootCounts.map(r => [r.themeSlug, r._count.id]));
+  const rootCountMap = new Map(rootCounts.map(r => [r.themeSlug, r._count.postId]));
 
   return (
     <div className={styles.page}>

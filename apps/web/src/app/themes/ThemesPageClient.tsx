@@ -20,16 +20,14 @@ export function ThemesPageClient() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [name, setName] = useState("");
   const [lockedAtomId, setLockedAtomId] = useState<string | null>(null);
-  const [description, setDescription] = useState("");
 
   async function handleCreate() {
     if (!name.trim()) return;
-    const result = await createTheme(name, description, lockedAtomId);
+    const result = await createTheme(name, undefined, lockedAtomId);
     if (result) {
       setDialogOpen(false);
       setName("");
       setLockedAtomId(null);
-      setDescription("");
       router.push(`/themes/${result.slug}`);
     }
   }
@@ -70,7 +68,6 @@ export function ThemesPageClient() {
 
             <div className={styles.body}>
               <div className={styles.field}>
-                <span className={styles.label}>Name</span>
                 <AtomSuggestionInput
                   id="theme-name"
                   label="Theme name"
@@ -84,25 +81,7 @@ export function ThemesPageClient() {
                 />
               </div>
 
-              <label className={styles.label}>
-                Description (optional)
-                <textarea
-                  className={styles.textarea}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="A short description of the debate topic..."
-                  maxLength={500}
-                  rows={3}
-                />
-              </label>
-
               {error && <p className={styles.error}>{error}</p>}
-
-              <p className={styles.hint}>
-                {lockedAtomId
-                  ? "This atom already exists on-chain."
-                  : "This will create an on-chain atom for the theme. A wallet signature is required."}
-              </p>
             </div>
 
             <div className={styles.footer}>

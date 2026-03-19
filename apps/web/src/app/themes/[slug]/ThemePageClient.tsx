@@ -77,7 +77,7 @@ export function ThemePageClient({ theme, rootPosts }: ThemePageClientProps) {
       </section>
 
       {/* Composer inline */}
-      <ComposerBlock composerFlow={composerFlow} className={styles.composerSection} />
+      <ComposerBlock composerFlow={composerFlow} className={styles.composerSection} placeholder="Start a debate" />
 
       {/* Posts grid */}
       <section className={styles.postsSection}>

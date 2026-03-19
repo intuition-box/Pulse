@@ -93,6 +93,7 @@ export const labels = {
 
   connectWalletToPublish: "Connect your wallet to publish.",
   connectWalletToAnalyze: "Connect your wallet to analyze.",
+  selectAtLeastOneTheme: "Select at least one theme to continue.",
   wrongNetworkWarning: "Wrong network.",
   switchNetworkButton: "Switch network",
   contentChangedWarning: "Content changed — re-extract to publish.",

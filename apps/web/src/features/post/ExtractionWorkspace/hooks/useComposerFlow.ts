@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import type { Stance } from "../extraction";
 import { useExtractionFlow } from "./useExtractionFlow";
 
 export type UseComposerFlowParams = {
   themeSlug: string;
+  themeSlugs?: string[];
   parentPostId: string | null;
   parentMainTripleTermId?: string | null;
   themeAtomTermId?: string | null;
@@ -21,6 +22,7 @@ export type UseComposerFlowParams = {
 
 export function useComposerFlow({
   themeSlug,
+  themeSlugs,
   parentPostId,
   parentMainTripleTermId,
   themeAtomTermId,
@@ -31,6 +33,9 @@ export function useComposerFlow({
   parentClaim,
 }: UseComposerFlowParams) {
   const [composerOpen, setComposerOpen] = useState(!!autoOpen);
+  useEffect(() => {
+    if (autoOpen) setComposerOpen(true);
+  }, [autoOpen]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const handlePublishSuccess = useCallback(
     (postId: string) => {
@@ -43,6 +48,7 @@ export function useComposerFlow({
 
   const flow = useExtractionFlow({
     themeSlug,
+    themeSlugs,
     parentPostId,
     parentMainTripleTermId,
     themeAtomTermId,

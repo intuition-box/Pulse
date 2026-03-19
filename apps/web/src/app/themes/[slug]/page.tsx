@@ -23,7 +23,7 @@ export default async function ThemePage({ params }: ThemePageProps) {
 
   const rootPosts = await prisma.post.findMany({
     where: {
-      themeSlug: theme.slug,
+      postThemes: { some: { themeSlug: theme.slug } },
       parentPostId: null, // Root posts only
     },
     orderBy: { createdAt: "desc" },

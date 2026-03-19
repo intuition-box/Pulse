@@ -214,6 +214,7 @@ export type HexString = `0x${string}`;
 
 export type UseExtractionFlowParams = {
   themeSlug: string;
+  themeSlugs?: string[];
   parentPostId: string | null;
   parentMainTripleTermId?: string | null;
   themeAtomTermId?: string | null;
