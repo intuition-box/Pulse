@@ -173,6 +173,42 @@ export async function fetchTriplesBySharedTopicAtoms(
   }
 }
 
+export async function fetchTriplesByLabel(
+  labels: string[],
+  excludeTripleId: string,
+  limit: number,
+): Promise<GraphqlTriple[]> {
+  if (!labels.length) return [];
+  try {
+    const orClauses = labels.flatMap((label) => [
+      { subject: { label: { _ilike: label } } },
+      { object: { label: { _ilike: label } } },
+    ]);
+    const res = await fetch(intuitionGraphqlUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: TRIPLE_QUERY,
+        variables: {
+          where: {
+            term_id: { _neq: excludeTripleId },
+            _or: orClauses,
+          },
+          limit,
+        },
+      }),
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const payload = await res.json();
+    return Array.isArray(payload?.data?.triples)
+      ? (payload.data.triples as GraphqlTriple[])
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchAtomsByWhere(
   where: Record<string, unknown>,
   limit: number,

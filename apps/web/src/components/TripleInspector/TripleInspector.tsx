@@ -65,12 +65,13 @@ type RelatedPost = {
     avatar: string | null;
   };
   mainTripleTermId: string;
-  score?: 1 | 2 | 3;
-  sharedTopics?: string[];
+  sharedAtom?: string;
 };
 
 type RelatedApiResponse = {
   exact: RelatedPost[];
+  sameSubject: RelatedPost[];
+  sameObject: RelatedPost[];
   related: RelatedPost[];
 };
 
@@ -133,6 +134,33 @@ function ClaimBlock({ data, nested }: { data: ClaimBlockData; nested?: boolean }
   );
 }
 
+// RelatedSection
+function RelatedSection({ title, posts }: { title: string; posts: RelatedPost[] }) {
+  return (
+    <section className={styles.section}>
+      <h3 className={styles.sectionTitle}>{title} <span className={styles.count}>({posts.length})</span></h3>
+      <div className={styles.postsList}>
+        {posts.map((p) => (
+          <div key={p.id} className={styles.relatedPostItem}>
+            <ReplyCard
+              id={p.id}
+              body={p.body}
+              createdAt={p.createdAt}
+              replyCount={p.replyCount}
+              author={p.author}
+              variant="compact"
+              mainTripleTermId={p.mainTripleTermId}
+            />
+            {p.sharedAtom && (
+              <p className={styles.sharedTopicHint}>Shared: {p.sharedAtom}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ─── Tab type ─────────────────────────────────────────────────────────────────
 type Tab = "related" | "structure";
 
@@ -143,6 +171,8 @@ export function TripleInspector({ triples, defaultTripleTermId, currentPostId, m
   const [tripleMap, setTripleMap] = useState<Record<string, TripleData>>({});
   const [tripleErrors, setTripleErrors] = useState<Record<string, string>>({});
   const [exactPosts, setExactPosts] = useState<RelatedPost[]>([]);
+  const [sameSubjectPosts, setSameSubjectPosts] = useState<RelatedPost[]>([]);
+  const [sameObjectPosts, setSameObjectPosts] = useState<RelatedPost[]>([]);
   const [relatedPosts, setRelatedPosts] = useState<RelatedPost[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [relatedLoading, setRelatedLoading] = useState(false);
@@ -202,17 +232,19 @@ export function TripleInspector({ triples, defaultTripleTermId, currentPostId, m
   useEffect(() => {
     let ok = true;
     (async () => {
-      if (!activeId) { setExactPosts([]); setRelatedPosts([]); return; }
+      if (!activeId) { setExactPosts([]); setSameSubjectPosts([]); setSameObjectPosts([]); setRelatedPosts([]); return; }
       setRelatedLoading(true);
       try {
         const qs = currentPostId ? `?exclude=${currentPostId}` : "";
         const data = await fetchJsonWithTimeout<RelatedApiResponse>(`/api/triples/${activeId}/related${qs}`);
         if (ok) {
           setExactPosts(data.exact || []);
+          setSameSubjectPosts(data.sameSubject || []);
+          setSameObjectPosts(data.sameObject || []);
           setRelatedPosts(data.related || []);
         }
       } catch {
-        if (ok) { setExactPosts([]); setRelatedPosts([]); }
+        if (ok) { setExactPosts([]); setSameSubjectPosts([]); setSameObjectPosts([]); setRelatedPosts([]); }
       } finally {
         if (ok) setRelatedLoading(false);
       }
@@ -308,51 +340,20 @@ export function TripleInspector({ triples, defaultTripleTermId, currentPostId, m
       >
         {tab === "related" && (
           <div className={styles.tabPanel}>
-            {/* Related posts */}
             {relatedLoading && <p className={styles.hint}>Loading related posts...</p>}
             {!relatedLoading && exactPosts.length > 0 && (
-              <section className={styles.section}>
-                <h3 className={styles.sectionTitle}>Same claim <span className={styles.count}>({exactPosts.length})</span></h3>
-                <div className={styles.postsList}>
-                  {exactPosts.map((p) => (
-                    <ReplyCard
-                      key={p.id}
-                      id={p.id}
-                      body={p.body}
-                      createdAt={p.createdAt}
-                      replyCount={p.replyCount}
-                      author={p.author}
-                      variant="compact"
-                      mainTripleTermId={p.mainTripleTermId}
-                    />
-                  ))}
-                </div>
-              </section>
+              <RelatedSection title="Same claim" posts={exactPosts} />
+            )}
+            {!relatedLoading && sameSubjectPosts.length > 0 && (
+              <RelatedSection title="Same subject" posts={sameSubjectPosts} />
+            )}
+            {!relatedLoading && sameObjectPosts.length > 0 && (
+              <RelatedSection title="Same object" posts={sameObjectPosts} />
             )}
             {!relatedLoading && relatedPosts.length > 0 && (
-              <section className={styles.section}>
-                <h3 className={styles.sectionTitle}>Related debates <span className={styles.count}>({relatedPosts.length})</span></h3>
-                <div className={styles.postsList}>
-                  {relatedPosts.map((p) => (
-                    <div key={p.id} className={styles.relatedPostItem}>
-                      <ReplyCard
-                        id={p.id}
-                        body={p.body}
-                        createdAt={p.createdAt}
-                        replyCount={p.replyCount}
-                        author={p.author}
-                        variant="compact"
-                        mainTripleTermId={p.mainTripleTermId}
-                      />
-                      {p.sharedTopics && p.sharedTopics.length > 0 && (
-                        <p className={styles.sharedTopicHint}>Shared: {p.sharedTopics.join(", ")}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </section>
+              <RelatedSection title="Related" posts={relatedPosts} />
             )}
-            {!relatedLoading && exactPosts.length === 0 && relatedPosts.length === 0 && (
+            {!relatedLoading && exactPosts.length === 0 && sameSubjectPosts.length === 0 && sameObjectPosts.length === 0 && relatedPosts.length === 0 && (
               <p className={styles.emptyState}>No related debates yet</p>
             )}
 
