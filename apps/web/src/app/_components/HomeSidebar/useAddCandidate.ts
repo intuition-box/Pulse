@@ -7,6 +7,7 @@ import {
   getMultiVaultAddressFromChainId,
   findAtomIds,
   findTripleIds,
+  pinThing,
 } from "@0xintuition/sdk";
 import {
   multiVaultCreateAtoms,
@@ -117,8 +118,13 @@ export function useAddCandidate() {
         }
 
         if (!subjectAtomId) {
+          const pinnedUri = await pinThing({ name: candidateLabel });
+          if (!pinnedUri) {
+            setError("Failed to pin atom metadata.");
+            return null;
+          }
           const atomCost = await multiVaultGetAtomCost(sdkReadConfig(writeConfig));
-          const atomUri = toHex(candidateLabel);
+          const atomUri = toHex(pinnedUri);
 
           const txHash = await multiVaultCreateAtoms(sdkWriteConfig(writeConfig), {
             args: [[atomUri], [atomCost]],

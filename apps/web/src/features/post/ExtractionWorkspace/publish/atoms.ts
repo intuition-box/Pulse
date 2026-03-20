@@ -4,6 +4,7 @@ import {
   multiVaultGetAtomCost,
   eventParseAtomCreated,
 } from "@0xintuition/protocol";
+import { pinThing } from "@0xintuition/sdk";
 import { labels } from "@/lib/vocabulary";
 import { fetchAtomsByWhere } from "@/lib/intuition/graphql-queries";
 import { parseVaultMetrics } from "@/lib/intuition/metrics";
@@ -251,7 +252,15 @@ export async function resolveAtoms(
 
     try {
       const atomCost = await multiVaultGetAtomCost(sdkReadConfig(ctx.writeConfig));
-      const atomUris = createLabels.map((label) => toHex(label));
+
+      const pinResults = await Promise.all(
+        createLabels.map((label) => pinThing({ name: label }))
+      );
+      const failedIdx = pinResults.findIndex((uri) => !uri);
+      if (failedIdx !== -1) {
+        throw new PublishPipelineError("atom_creation_failed", labels.errorAtomCreation);
+      }
+      const atomUris = pinResults.map((uri) => toHex(uri!));
       const costs = Array(createLabels.length).fill(atomCost) as bigint[];
       const totalCost = atomCost * BigInt(createLabels.length);
 
