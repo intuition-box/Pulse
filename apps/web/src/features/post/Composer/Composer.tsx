@@ -91,12 +91,18 @@ export function Composer({
 
       {themeSlot && <div className={styles.themeSlot}>{themeSlot}</div>}
 
-      <textarea
-        className={`${styles.textarea} ${stance === "SUPPORTS" ? styles.textareaSupports : stance === "REFUTES" ? styles.textareaRefutes : ""}`}
-        value={inputText}
-        onChange={(e) => onInputChange(e.target.value)}
-        placeholder={placeholder ?? "Write your text"}
-      />
+      <div className={styles.textareaWrap}>
+        <textarea
+          className={`${styles.textarea} ${stance === "SUPPORTS" ? styles.textareaSupports : stance === "REFUTES" ? styles.textareaRefutes : ""}`}
+          value={inputText}
+          maxLength={200}
+          onChange={(e) => onInputChange(e.target.value)}
+          placeholder={placeholder ?? "Write your text"}
+        />
+        <span className={`${styles.charCount} ${inputText.length >= 200 ? styles.charCountLimit : ""}`}>
+          {inputText.length}/200
+        </span>
+      </div>
       {message
         ? <InfoHint variant="warning">{message}</InfoHint>
         : <InfoHint variant="tip">{labels.composerHint}</InfoHint>
@@ -126,7 +132,7 @@ export function Composer({
         {!walletConnected && (
           <span className={styles.warning}>{labels.connectWalletToAnalyze}</span>
         )}
-        {walletConnected && extraDisabled && extraDisabledHint && (
+        {walletConnected && extraDisabled && extraDisabledHint && inputText.length > 0 && (
           <span className={styles.warning}>{extraDisabledHint}</span>
         )}
       </div>

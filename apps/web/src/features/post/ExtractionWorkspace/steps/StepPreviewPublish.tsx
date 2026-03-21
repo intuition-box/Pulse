@@ -275,7 +275,7 @@ export function StepPreviewPublish({ flow, chatOpen, onChatOpenChange, onBack, o
     [model.publishPlan.metadata.tagEntries],
   );
 
-  const highlightedText = useHighlightedText(extractedInputText, hoveredTerms);
+  const highlightedText = useHighlightedText(extractedInputText, hoveredTerms, draftPosts.length);
   if (model.viewState === "publishing") {
     return (
       <div className={styles.stepContent}>

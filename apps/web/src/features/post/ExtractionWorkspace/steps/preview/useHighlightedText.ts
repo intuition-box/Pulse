@@ -22,9 +22,10 @@ function extendWithModifiers(lower: string, end: number, modifierTexts?: string[
 export function useHighlightedText(
   extractedInputText: string,
   hoveredTerms: HoverTerms | null,
+  draftCount: number,
 ): HighlightSpan | null {
   return useMemo(() => {
-    if (!extractedInputText || !hoveredTerms) return null;
+    if (!extractedInputText || !hoveredTerms || draftCount <= 1) return null;
 
     const lower = extractedInputText.toLowerCase();
     const { sText, pText, oText, sentenceText, claimText, modifierTexts } = hoveredTerms;
@@ -33,7 +34,7 @@ export function useHighlightedText(
     let result: HighlightSpan | null = null;
 
     if (!result && claimText) {
-      const ctLower = claimText.toLowerCase();
+      const ctLower = claimText.replace(/[.!?]+$/, "").toLowerCase();
       const ctIdx = lower.indexOf(ctLower);
       if (ctIdx !== -1) {
         result = {
@@ -105,5 +106,5 @@ export function useHighlightedText(
     }
 
     return result;
-  }, [extractedInputText, hoveredTerms]);
+  }, [extractedInputText, hoveredTerms, draftCount]);
 }

@@ -112,6 +112,24 @@
   color: var(--stance-refutes-text);
 }
 
+.textareaWrap {
+  position: relative;
+}
+
+.charCount {
+  position: absolute;
+  bottom: var(--space-2);
+  right: var(--space-2);
+  font-size: var(--font-size-tiny);
+  color: var(--text-muted);
+  pointer-events: none;
+  user-select: none;
+}
+
+.charCountLimit {
+  color: var(--color-amber-700);
+}
+
 .textareaSupports {
   border-left: 3px solid var(--stance-supports-accent);
 }
