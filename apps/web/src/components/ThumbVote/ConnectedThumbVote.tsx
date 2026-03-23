@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount, useChainId, usePublicClient, useSwitchChain, useWalletClient } from "wagmi";
-import { getMultiVaultAddressFromChainId } from "@0xintuition/sdk";
+import { getMultiVaultAddressFromChainId, calculateCounterTripleId } from "@0xintuition/sdk";
 
 import { ThumbVote } from "./ThumbVote";
 import { intuitionTestnet } from "@/lib/chain";
-import { voteOnTriple } from "@/lib/intuition/intuitionVote";
+import { voteOnTriple, redeemVote } from "@/lib/intuition/intuitionVote";
+import { queryMaxRedeem } from "@/lib/intuition/intuitionRedeem";
 import { fetchJsonWithTimeout } from "@/lib/net/fetchWithTimeout";
 import { parseTxError } from "@/lib/getErrorMessage";
 import { useToast } from "@/components/Toast/ToastContext";
@@ -132,16 +133,16 @@ export function ConnectedThumbVote({
     }
   }
 
-  // ── Vote handler ──
+  // ── Vote handler (deposit or redeem toggle)
   async function handleVote(direction: "support" | "oppose") {
     if (!isConnected) {
       addToast("Connect wallet to vote", "info");
       return;
     }
 
-    if (userDirection === direction) return; // already voted this way
-
     if (!walletClient || !publicClient) return;
+
+    const isRedeem = userDirection === direction;
 
     setBusy(true);
     setBusyDirection(direction);
@@ -158,42 +159,80 @@ export function ConnectedThumbVote({
       }
     }
 
-    const minDeposit = await ensureMinDeposit();
-    if (minDeposit === null) {
-      addToast("Failed to load config", "error");
-      setBusy(false);
-      setBusyDirection(null);
-      return;
-    }
+    const addr = getMultiVaultAddressFromChainId(intuitionTestnet.id);
+    const config = { walletClient, publicClient, address: addr };
 
-    // Optimistic update
     const prevFor = forCount;
     const prevAgainst = againstCount;
     const prevDirection = userDirection;
 
-    if (direction === "support") setForCount((c) => c + 1);
-    else setAgainstCount((c) => c + 1);
-    setUserDirection(direction);
+    if (isRedeem) {
+      const targetTermId = direction === "support"
+        ? tripleTermId
+        : (counterTermId ?? calculateCounterTripleId(tripleTermId as `0x${string}`));
+      const shares = await queryMaxRedeem({ config, termId: targetTermId, curveId: 1n });
 
-    const addr = getMultiVaultAddressFromChainId(intuitionTestnet.id);
-    const result = await voteOnTriple({
-      config: { walletClient, publicClient, address: addr },
-      tripleTermId,
-      counterTermId,
-      direction,
-      amount: minDeposit,
-      curveId: 1n,
-    });
+      if (shares === 0n) {
+        addToast("Nothing to withdraw", "info");
+        setBusy(false);
+        setBusyDirection(null);
+        return;
+      }
 
-    if (result.ok) {
-      onVoteSuccess?.();
+      if (direction === "support") setForCount((c) => Math.max(0, c - 1));
+      else setAgainstCount((c) => Math.max(0, c - 1));
+      setUserDirection(null);
+
+      const result = await redeemVote({
+        config,
+        tripleTermId,
+        counterTermId,
+        direction,
+        shares,
+        curveId: 1n,
+      });
+
+      if (result.ok) {
+        addToast("Position withdrawn", "success");
+        onVoteSuccess?.();
+      } else {
+        setForCount(prevFor);
+        setAgainstCount(prevAgainst);
+        setUserDirection(prevDirection);
+        const { short, isReject } = parseTxError(result.error ?? "Redeem failed");
+        addToast(short, isReject ? "info" : "error");
+      }
     } else {
-      // Revert optimistic update
-      setForCount(prevFor);
-      setAgainstCount(prevAgainst);
-      setUserDirection(prevDirection);
-      const { short, isReject } = parseTxError(result.error ?? "Vote failed");
-      addToast(short, isReject ? "info" : "error");
+      const minDeposit = await ensureMinDeposit();
+      if (minDeposit === null) {
+        addToast("Failed to load config", "error");
+        setBusy(false);
+        setBusyDirection(null);
+        return;
+      }
+
+      if (direction === "support") setForCount((c) => c + 1);
+      else setAgainstCount((c) => c + 1);
+      setUserDirection(direction);
+
+      const result = await voteOnTriple({
+        config,
+        tripleTermId,
+        counterTermId,
+        direction,
+        amount: minDeposit,
+        curveId: 1n,
+      });
+
+      if (result.ok) {
+        onVoteSuccess?.();
+      } else {
+        setForCount(prevFor);
+        setAgainstCount(prevAgainst);
+        setUserDirection(prevDirection);
+        const { short, isReject } = parseTxError(result.error ?? "Vote failed");
+        addToast(short, isReject ? "info" : "error");
+      }
     }
 
     setBusy(false);
