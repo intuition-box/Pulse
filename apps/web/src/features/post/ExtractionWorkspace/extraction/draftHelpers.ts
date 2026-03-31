@@ -42,13 +42,12 @@ export function splitIntoDrafts(
   });
   return activeIds.map((pid, index) => {
     const proposal = proposals.find((p) => p.id === pid);
-    const stance = proposal?.suggestedStance ?? userStance;
-    const bodyDefault = proposal
+    const bodyDefault = (proposal
       ? (proposal.claimText || proposal.sentenceText || `${proposal.sText} ${proposal.pText} ${proposal.oText}`)
-      : "";
+      : "").replace(/\.\s*$/, "");
     return {
       id: makeDraftId(index),
-      stance,
+      stance: userStance,
       mainProposalId: pid,
       proposalIds: [pid],
       body: bodyDefault,

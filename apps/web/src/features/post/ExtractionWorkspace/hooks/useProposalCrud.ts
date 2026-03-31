@@ -621,6 +621,7 @@ export function useProposalCrud({
     setProposals((prev) =>
       prev.map((p) => {
         if (p.id !== proposalId) return p;
+        if (p.matchedIntuitionTripleTermId) return p;
         const updates: Partial<ProposalDraft> = {};
         const label = canonicalLabel || p[field];
         if (field === "sText") {

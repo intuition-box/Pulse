@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAccount, useChainId, usePublicClient, useSwitchChain, useWalletClient } from "wagmi";
 
+import { atomKeyFromLabel } from "@db/agents";
 import { intuitionTestnet } from "@/lib/chain";
 import { normalizeLabelForChain } from "@/lib/format/normalizeLabel";
 import { labels } from "@/lib/vocabulary";
@@ -15,6 +16,7 @@ import {
   buildNestedRefLabelsFromState,
   buildProposalDraftsFromApi,
   computeMainRef,
+  rebuildDraftFromMatchedTree,
   type ApiDerivedTriple,
   type ApiProposal,
   type ApprovedProposalWithRole,
@@ -23,6 +25,7 @@ import {
   type ExtractionContext,
   type ExtractionJobSummary,
   type MainRef,
+  type MatchedTree,
   type NestedProposalDraft,
   type ProposalActions,
   type DraftActions,
@@ -34,6 +37,9 @@ import {
   type TxPlanItem,
   type UseExtractionFlowParams,
 } from "../extraction";
+import type { RewriteResult } from "../extraction/treeRewrite";
+import { buildExtractedTree } from "../extraction/treeBuild";
+import { treeLeavesMatch, treeDepth, collectLeaves, normalizeLeaf } from "./matchTree";
 import { useSessionAuth } from "./useSessionAuth";
 import { useDraftPosts } from "./useDraftPosts";
 import { useOnchainPublish } from "./useOnchainPublish";
@@ -41,6 +47,23 @@ import { useProposalCrud } from "./useProposalCrud";
 import { useTripleResolution } from "./useTripleResolution";
 
 const normalizeText = normalizeLabelForChain;
+
+async function searchOnChainTrees(
+  query: string,
+): Promise<{ trees: Array<{ termId: string; tree: MatchedTree; positionCount: number }> }> {
+  try {
+    const res = await fetch("/api/intuition/search-nested-tree", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, limit: 10 }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) return { trees: [] };
+    return await res.json();
+  } catch {
+    return { trees: [] };
+  }
+}
 
 export function useExtractionFlow({ themes, parentPostId, parentMainTripleTermId, onPublishSuccess, parentClaim }: UseExtractionFlowParams) {
   const themeSlug = themes[0]?.slug ?? "";
@@ -66,6 +89,7 @@ export function useExtractionFlow({ themes, parentPostId, parentMainTripleTermId
   const [depositState, setDepositState] = useState<DepositState>({ status: "idle" });
 
   const { ensureSession } = useSessionAuth({ setMessage });
+  const clearRewriteGuardRef = useRef<(() => void) | null>(null);
 
   const {
     draftPosts, setDraftPosts, initializeDrafts, allDraftsHaveMain,
@@ -82,7 +106,7 @@ export function useExtractionFlow({ themes, parentPostId, parentMainTripleTermId
     [draftPosts, proposals, nestedProposals],
   );
 
-  const nestedRefLabels = useMemo(
+  const baseNestedRefLabels = useMemo(
     () => buildNestedRefLabelsFromState(proposals, nestedProposals, derivedTriples),
     [proposals, nestedProposals, derivedTriples],
   );
@@ -147,8 +171,6 @@ export function useExtractionFlow({ themes, parentPostId, parentMainTripleTermId
     });
   }, [proposals, nestedProposals, derivedTriples]);
 
-  const displayNestedProposals = visibleNestedProposals;
-
   const updateNestedPredicate = useCallback((nestedId: string, label: string) => {
     setNestedProposals((prev) =>
       prev.map((edge) => edge.id === nestedId ? { ...edge, predicate: label } : edge),
@@ -165,6 +187,15 @@ export function useExtractionFlow({ themes, parentPostId, parentMainTripleTermId
       }),
     );
   }, []);
+
+  const updateDerivedTriple = useCallback(
+    (stableKey: string, field: "subject" | "predicate" | "object", value: string) => {
+      setDerivedTriples((prev) =>
+        prev.map((dt) => (dt.stableKey === stableKey ? { ...dt, [field]: value } : dt)),
+      );
+    },
+    [],
+  );
 
   async function runExtraction(): Promise<{ ok: boolean; proposalCount: number }> {
     setMessage(null);
@@ -191,39 +222,42 @@ export function useExtractionFlow({ themes, parentPostId, parentMainTripleTermId
       if (!sessionOk) {
         return fail;
       }
-      const response = await fetch("/api/extract", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          themeSlug: themeSlug,
-          inputText: normalizedInput,
-          parentPostId: parentPostId,
-          stance: normalizedStance,
-        }),
-      });
 
-      // Read SSE stream — skip heartbeat pings, parse the final data line
-      const reader = response.body?.getReader();
-      if (!reader) {
-        setMessage("Unable to extract proposals.");
-        return fail;
-      }
-      const decoder = new TextDecoder();
-      let buffer = "";
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let data: any = null;
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (value) buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            data = JSON.parse(line.slice(6));
+      const [data, searchData] = await Promise.all([
+        (async () => {
+          const response = await fetch("/api/extract", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              themeSlug: themeSlug,
+              inputText: normalizedInput,
+              parentPostId: parentPostId,
+              stance: normalizedStance,
+            }),
+          });
+
+          const reader = response.body?.getReader();
+          if (!reader) return null;
+          const decoder = new TextDecoder();
+          let buffer = "";
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let parsed: any = null;
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (value) buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                parsed = JSON.parse(line.slice(6));
+              }
+            }
+            if (done) break;
           }
-        }
-        if (done) break;
-      }
+          return parsed;
+        })(),
+        searchOnChainTrees(normalizedInput),
+      ]);
 
       if (!data) {
         setMessage("Unable to extract proposals.");
@@ -258,17 +292,6 @@ export function useExtractionFlow({ themes, parentPostId, parentMainTripleTermId
       const newNested = buildNestedDraftsFromApi(allExtracted);
       const newDerived = buildDerivedTripleDraftsFromApi((data.derivedTriples ?? []) as ApiDerivedTriple[]);
 
-      setExtractionJob({
-        id: data.submission.id,
-        status: data.submission.status,
-        parentPostId,
-        stance: normalizedStance,
-        parentMainTripleTermId,
-      });
-      setProposals(newProposals);
-      setNestedProposals(newNested);
-      setDerivedTriples(newDerived);
-
       const groupMap = new Map<string, string[]>();
       const groupMain = new Map<string, string>();
       for (const p of newProposals) {
@@ -279,21 +302,109 @@ export function useExtractionFlow({ themes, parentPostId, parentMainTripleTermId
         if (p.role === "MAIN") groupMain.set(gk, p.id);
       }
 
-      if (groupMap.size <= 1) {
+      let reconciledProposals = newProposals;
+      let reconciledNested = newNested;
+      let reconciledDerived = newDerived;
+      let reconciledMainId: string | null = null;
+
+      const onChainTrees = searchData.trees ?? [];
+
+      if (onChainTrees.length > 0 && groupMap.size <= 1) {
         const mainId = groupMain.values().next().value ?? newProposals[0]?.id ?? null;
-        const mainP = newProposals.find((p) => p.id === mainId);
-        const correctedStance = (mainP?.stanceAligned === false && mainP.suggestedStance)
-          ? mainP.suggestedStance : normalizedStance;
-        const singleBody = mainP?.claimText || mainP?.sentenceText || normalizedInput;
-        initializeDrafts(correctedStance, newProposals.map((p) => p.id), mainId, singleBody);
+        const mainP = mainId ? newProposals.find((p) => p.id === mainId) : null;
+
+        if (mainP) {
+          const tempDraft: DraftPost = {
+            id: makeDraftId(0),
+            stance: normalizedStance,
+            mainProposalId: mainId,
+            proposalIds: newProposals.map((p) => p.id),
+            body: mainP.claimText || mainP.sentenceText || normalizedInput,
+            bodyDefault: mainP.claimText || mainP.sentenceText || normalizedInput,
+          };
+
+          const extractedTree = buildExtractedTree(tempDraft, newProposals, newNested, newDerived);
+
+          if (extractedTree) {
+            // Case 1: Full tree match (same depth) — rewrite atom boundaries
+            let rewriteResult: RewriteResult | null = null;
+            for (const candidate of onChainTrees) {
+              if (treeLeavesMatch(candidate.tree, extractedTree)
+                  && treeDepth(candidate.tree) >= treeDepth(extractedTree)) {
+                rewriteResult = rebuildDraftFromMatchedTree(candidate.tree, mainP, candidate.termId);
+                break;
+              }
+            }
+
+            if (rewriteResult) {
+              const rewrittenIds = new Set(rewriteResult.proposals.map((p) => p.id));
+              const keptSupporting = newProposals.filter(
+                (p) => p.role === "SUPPORTING" && !rewrittenIds.has(p.id) && !p.outermostMainKey,
+              );
+              reconciledProposals = [...rewriteResult.proposals, ...keptSupporting];
+              reconciledNested = rewriteResult.nestedProposals;
+              reconciledDerived = [];
+              reconciledMainId = rewriteResult.mainProposalId;
+            }
+
+          }
+        }
+
+        // Case 2: Partial match — tag existing sub-triples without rewriting structure
+        // Runs for both flat and nested mains. Skipped if Case 1 already rewrote.
+        if (!reconciledMainId) {
+          for (const candidate of onChainTrees) {
+            const candidateConcat = collectLeaves(candidate.tree).map(normalizeLeaf).join(" ");
+
+            const matchedProposal = reconciledProposals.find((p) => {
+              const pConcat = [p.sText, p.pText, p.oText].map(normalizeLeaf).join(" ");
+              return pConcat === candidateConcat;
+            });
+
+            if (matchedProposal) {
+              matchedProposal.matchedIntuitionTripleTermId = candidate.termId;
+              matchedProposal.sText = candidate.tree.subject;
+              matchedProposal.pText = candidate.tree.predicate;
+              matchedProposal.oText = candidate.tree.object;
+              matchedProposal.saved = {
+                ...matchedProposal.saved,
+                sText: candidate.tree.subject,
+                pText: candidate.tree.predicate,
+                oText: candidate.tree.object,
+              };
+            }
+          }
+        }
+      }
+
+      setExtractionJob({
+        id: data.submission.id,
+        status: data.submission.status,
+        parentPostId,
+        stance: normalizedStance,
+        parentMainTripleTermId,
+      });
+      setProposals(reconciledProposals);
+      setNestedProposals(reconciledNested);
+      setDerivedTriples(reconciledDerived);
+      clearRewriteGuardRef.current?.();
+
+      if (groupMap.size <= 1) {
+        const effectiveMainId = reconciledMainId
+          ?? groupMain.values().next().value
+          ?? reconciledProposals[0]?.id
+          ?? null;
+        const effectiveMainP = reconciledProposals.find((p) => p.id === effectiveMainId);
+        const singleBody = (effectiveMainP?.claimText || effectiveMainP?.sentenceText || normalizedInput).replace(/\.\s*$/, "");
+        initializeDrafts(normalizedStance, reconciledProposals.map((p) => p.id), effectiveMainId, singleBody);
       } else {
         const drafts: DraftPost[] = [...groupMap.entries()].map(([gk, ids], idx) => {
           const mainId = groupMain.get(gk) ?? ids[0];
           const mainP = newProposals.find((p) => p.id === mainId);
-          const bodyDefault = mainP?.claimText || mainP?.sentenceText || `${mainP?.sText} ${mainP?.pText} ${mainP?.oText}`;
+          const bodyDefault = (mainP?.claimText || mainP?.sentenceText || `${mainP?.sText} ${mainP?.pText} ${mainP?.oText}`).replace(/\.\s*$/, "");
           return {
             id: makeDraftId(idx),
-            stance: mainP?.suggestedStance ?? normalizedStance,
+            stance: normalizedStance,
             mainProposalId: mainId,
             proposalIds: ids,
             body: bodyDefault,
@@ -309,7 +420,7 @@ export function useExtractionFlow({ themes, parentPostId, parentMainTripleTermId
         parentPostId,
         stance: normalizedStance,
       });
-      return { ok: true, proposalCount: newProposals.length };
+      return { ok: true, proposalCount: reconciledProposals.length };
     } catch {
       setMessage("Unable to extract proposals.");
       return fail;
@@ -343,17 +454,110 @@ export function useExtractionFlow({ themes, parentPostId, parentMainTripleTermId
       if (dt.predicate) labels.push(dt.predicate);
       if (dt.object) labels.push(dt.object);
     }
+    for (const theme of themes) {
+      labels.push(theme.slug);
+    }
     return labels;
-  }, [visibleNestedProposals, derivedTriples]);
+  }, [visibleNestedProposals, derivedTriples, themes]);
+
+  const rewriteDraftForTreeMatch = useCallback((draftId: string, tree: MatchedTree, termId: string) => {
+    const draft = draftPosts.find((d) => d.id === draftId);
+    if (!draft) return;
+    const mainP = proposals.find((p) => p.id === draft.mainProposalId);
+    if (!mainP) return;
+
+    const result = rebuildDraftFromMatchedTree(tree, mainP, termId);
+
+    const draftProposalIds = new Set(draft.proposalIds);
+    const oldProposals = proposals.filter((p) => draftProposalIds.has(p.id));
+    const oldChainKeys = new Set(
+      oldProposals.map((p) => p.stableKey).filter(Boolean),
+    );
+    if (mainP.outermostMainKey) oldChainKeys.add(mainP.outermostMainKey);
+    const oldGroupKeys = new Set(
+      oldProposals.map((p) => p.groupKey).filter(Boolean),
+    );
+
+    setProposals((prev) => [
+      ...prev.filter((p) => !draftProposalIds.has(p.id)),
+      ...result.proposals,
+    ]);
+
+    setNestedProposals((prev) => {
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const e of prev) {
+          if (!oldChainKeys.has(e.stableKey)) {
+            const sRelated = e.subject.type === "triple" && oldChainKeys.has(e.subject.tripleKey);
+            const oRelated = e.object.type === "triple" && oldChainKeys.has(e.object.tripleKey);
+            if (sRelated || oRelated) {
+              oldChainKeys.add(e.stableKey);
+              changed = true;
+            }
+          }
+          if (oldChainKeys.has(e.stableKey)) {
+            if (e.subject.type === "triple" && !oldChainKeys.has(e.subject.tripleKey)) {
+              oldChainKeys.add(e.subject.tripleKey);
+              changed = true;
+            }
+            if (e.object.type === "triple" && !oldChainKeys.has(e.object.tripleKey)) {
+              oldChainKeys.add(e.object.tripleKey);
+              changed = true;
+            }
+          }
+        }
+      }
+      return [
+        ...prev.filter((e) => !oldChainKeys.has(e.stableKey)),
+        ...result.nestedProposals,
+      ];
+    });
+
+    setDerivedTriples((prev) =>
+      prev.filter((dt) => !oldGroupKeys.has(dt.ownerGroupKey)),
+    );
+
+    setDraftPosts((prev) =>
+      prev.map((d) =>
+        d.id === draftId
+          ? { ...d, proposalIds: result.proposals.map((p) => p.id), mainProposalId: result.mainProposalId }
+          : d,
+      ),
+    );
+  }, [draftPosts, proposals, setProposals, setNestedProposals, setDerivedTriples, setDraftPosts]);
 
   const resolution = useTripleResolution({
     approvedProposals,
     address,
     extraAtomLabels,
     nestedProposals: visibleNestedProposals,
+    derivedTriples,
+    draftPosts,
+    themes,
     onTripleMatched: crud.setMatchedTripleTermId,
     onAtomResolved: crud.resolveProposalAtom,
+    onTreeMatchRewrite: rewriteDraftForTreeMatch,
   });
+  clearRewriteGuardRef.current = resolution.clearRewriteGuard;
+
+  const nestedRefLabels = useMemo(() => {
+    if (resolution.resolvedAtomLabels.size === 0) return baseNestedRefLabels;
+    const merged = new Map(baseNestedRefLabels);
+    for (const [inputLabel, canonicalLabel] of resolution.resolvedAtomLabels) {
+      const key = `atom:${atomKeyFromLabel(inputLabel)}`;
+      merged.set(key, canonicalLabel);
+    }
+    return merged;
+  }, [baseNestedRefLabels, resolution.resolvedAtomLabels]);
+
+  const fullTreeMatchDraftIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const [draftId] of resolution.fullTreeMatchByDraft) {
+      set.add(draftId);
+    }
+    return set;
+  }, [resolution.fullTreeMatchByDraft]);
 
   const publish = useOnchainPublish({
     isConnected,
@@ -382,6 +586,8 @@ export function useExtractionFlow({ themes, parentPostId, parentMainTripleTermId
     mainRefByDraft,
     derivedTriples,
     nestedRefLabels,
+    fullTreeMatchDraftIds,
+    resolutionMap: resolution.resolutionMap,
   });
 
   const busy = isExtracting || publish.isPublishing;
@@ -400,7 +606,7 @@ export function useExtractionFlow({ themes, parentPostId, parentMainTripleTermId
   };
 
   const draftActions: DraftActions = {
-    onSplit: () => splitDrafts(normalizedStance),
+    onSplit: () => { splitDrafts(normalizedStance); clearRewriteGuardRef.current?.(); },
     onStanceChange: updateDraftStance,
     onBodyChange: updateDraftBody,
     onBodyReset: resetDraftBody,
@@ -426,7 +632,7 @@ export function useExtractionFlow({ themes, parentPostId, parentMainTripleTermId
     proposals,
     derivedTriples,
     visibleNestedProposals,
-    displayNestedProposals,
+    displayNestedProposals: visibleNestedProposals,
     nestedRefLabels,
     proposalCount,
     draftPosts,
@@ -446,6 +652,9 @@ export function useExtractionFlow({ themes, parentPostId, parentMainTripleTermId
     semanticSkipped: resolution.semanticSkipped,
     resolvedAtomMap: resolution.resolvedAtomMap,
     nestedTripleStatuses: resolution.nestedTripleStatuses,
+    metadataTripleStatuses: resolution.metadataTripleStatuses,
+    derivedCanonicalLabels: resolution.derivedCanonicalLabels,
+    fullTreeMatchByDraft: resolution.fullTreeMatchByDraft,
     retryTripleCheck: resolution.retryCheck,
     publishedPosts,
     isPublishing: publish.isPublishing,
@@ -456,11 +665,13 @@ export function useExtractionFlow({ themes, parentPostId, parentMainTripleTermId
     proposalActions,
     draftActions,
     publishOnchain: publish.publishOnchain,
+    setBlockedDraftIds: publish.setBlockedDraftIds,
     themes,
     parentClaim,
     parentMainTripleTermId: parentMainTripleTermId ?? null,
     updateNestedPredicate,
     updateNestedAtom,
+    updateDerivedTriple,
   };
 }
 

@@ -9,3 +9,4 @@ export * from "./apiMappers";
 export * from "./draftHelpers";
 export * from "./draftGrouping";
 export * from "./idPrefixes";
+export * from "./treeRewrite";

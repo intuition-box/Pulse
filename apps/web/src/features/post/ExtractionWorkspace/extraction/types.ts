@@ -94,6 +94,35 @@ export type NestedProposalDraft = NestedEdgeLike & {
   subject: NestedTermRef;
   object: NestedTermRef;
   status?: NestedProposalStatus;
+  /** Pre-resolved on-chain termId (set by parallel search reconciliation). */
+  matchedTripleTermId?: string;
+};
+
+/** Client-safe mirror of ResolvedTripleShape (server-only) — display fields only. */
+export type MatchedTree = {
+  termId?: string;
+  subject: string;
+  predicate: string;
+  object: string;
+  subjectNested?: MatchedTree | null;
+  objectNested?: MatchedTree | null;
+};
+
+export type ResolutionMap = {
+  /** conceptKey (lowercase normalized) → atomTermId */
+  atoms: Map<string, string>;
+  /** inputLabel → canonical on-chain label */
+  canonicalLabels: Map<string, string>;
+  /** proposalId → { tripleTermId, isExisting } */
+  flatTriples: Map<string, { tripleTermId: string; isExisting: boolean }>;
+  /** nested edge stableKey → tripleTermId */
+  nestedTriples: Map<string, string>;
+  /** "tag-{draftId}-{slug}" or "stance-{draftId}" → tripleTermId */
+  metadataTriples: Map<string, string>;
+  /** draftId → on-chain matched tree from Phase 5 */
+  treeMatches: Map<string, { termId: string; tree: MatchedTree }>;
+  /** Protocol costs (null = not yet loaded) */
+  costs: { atomCost: bigint; tripleCost: bigint; minDeposit: bigint } | null;
 };
 
 export type DerivedTripleDraft = {

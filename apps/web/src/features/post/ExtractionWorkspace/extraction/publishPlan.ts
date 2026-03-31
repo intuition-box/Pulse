@@ -111,11 +111,10 @@ export function computePublishIntent(
 
       if (draftId && mainRef?.type === "nested") {
         if (nestedByStableKey.has(p.outermostMainKey)) {
-          if (isStableKeyReachableFromNestedMain(p.outermostMainKey, p.stableKey, nestedByStableKey)) {
-            publishable.push(p);
-          } else {
-            synthetic.push(p);
-          }
+          // Nested-main proposals have sentence-level S/P/O (flattened discourse connectors).
+          // Their on-chain representation is the root nested edge + derived triples,
+          // not a flat triple with sentence-atoms. Always synthetic.
+          synthetic.push(p);
           continue;
         }
       }
@@ -178,6 +177,9 @@ export function buildPublishPlan(input: PublishPlanInput): PublishPlan {
       return mainRefByDraft.get(draftId)?.type === "nested";
     });
     if (!allNestedMain) continue;
+    // Only dedup across drafts — within the same draft, both MAIN and SUPPORTING are needed
+    const draftsInGroup = new Set(group.map((p) => proposalToDraft.get(p.id)));
+    if (draftsInGroup.size < 2) continue;
     for (const duplicate of group.slice(1)) {
       removedDuplicateIds.add(duplicate.id);
     }
