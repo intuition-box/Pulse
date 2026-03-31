@@ -36,8 +36,11 @@ export type DetailsMessageProps = {
   searchAtomForEdit: (query: string) => Promise<AtomResult[]>;
   onUpdateNestedPredicate?: (nestedId: string, label: string) => void;
   onUpdateNestedAtom?: (nestedId: string, slot: "subject" | "object", label: string) => void;
+  onUpdateDerivedTriple?: (stableKey: string, field: "subject" | "predicate" | "object", value: string) => void;
   onSetNewTermLocal?: (proposalId: string, field: "sText" | "pText" | "oText", label: string) => void;
   resolvedAtomMap?: Map<string, string>;
+  nestedTripleStatuses?: Map<string, string>;
+  derivedCanonicalLabels?: Map<string, { s?: string; p?: string; o?: string }>;
 };
 
 const FIELD_MAP = {
@@ -445,18 +448,52 @@ function TripleRow({
   );
 }
 
+type DerivedEditingSlot = { stableKey: string; field: "subject" | "predicate" | "object" };
+
+const DERIVED_SLOT_MAP: Record<string, { fieldKey: FieldKey }> = {
+  S: { fieldKey: "sText" },
+  P: { fieldKey: "pText" },
+  O: { fieldKey: "oText" },
+};
+const DERIVED_FIELD_FOR_LABEL: Record<string, "subject" | "predicate" | "object"> = {
+  S: "subject", P: "predicate", O: "object",
+};
+
 function DerivedTripleExpandable({
   dt,
   expandedKey,
   onToggle,
   resolvedAtomMap,
+  tripleTermId,
+  editingDerivedSlot,
+  onEditDerivedSlot,
+  searchAtomForEdit,
+  onSelectDerivedAtom,
+  onSetNewDerivedTerm,
+  atomError,
+  onClearError,
+  derivedCanonicalLabels,
 }: {
   dt: DerivedTripleDraft;
   expandedKey: string | null;
   onToggle: (key: string) => void;
   resolvedAtomMap?: Map<string, string>;
+  tripleTermId?: string | null;
+  editingDerivedSlot?: DerivedEditingSlot | null;
+  onEditDerivedSlot?: (slot: DerivedEditingSlot | null) => void;
+  searchAtomForEdit?: (query: string) => Promise<AtomResult[]>;
+  onSelectDerivedAtom?: (stableKey: string, field: "subject" | "predicate" | "object", label: string) => void;
+  onSetNewDerivedTerm?: (stableKey: string, field: "subject" | "predicate" | "object", label: string) => void;
+  atomError?: string | null;
+  onClearError?: () => void;
+  derivedCanonicalLabels?: Map<string, { s?: string; p?: string; o?: string }>;
 }) {
   const isExpanded = expandedKey === dt.stableKey;
+  const canEdit = !!onEditDerivedSlot && !!onSelectDerivedAtom;
+  const canonical = derivedCanonicalLabels?.get(dt.stableKey);
+  const displayS = canonical?.s ?? dt.subject;
+  const displayP = canonical?.p ?? dt.predicate;
+  const displayO = canonical?.o ?? dt.object;
 
   return (
     <div className={styles.tripleRow}>
@@ -469,23 +506,61 @@ function DerivedTripleExpandable({
       >
         <span className={styles.expandIcon} data-expanded={isExpanded}>&#9654;</span>
         <ScrollingLabel
-          text={`${dt.subject} | ${dt.predicate} | ${dt.object}`}
+          text={`${displayS} | ${displayP} | ${displayO}`}
           className={styles.tripleInline}
         />
         <span className={styles.tripleMeta}>
-          <span className={styles.badgeNew}>New</span>
+          {tripleTermId && <span className={styles.onchainId}>{truncateId(tripleTermId)}</span>}
+          {!tripleTermId && <span className={styles.badgeNew}>New</span>}
         </span>
       </div>
 
       {isExpanded && (
         <div className={styles.atomList}>
-          {([["S", dt.subject], ["P", dt.predicate], ["O", dt.object]] as const).map(([label, value]) => (
-            <div key={label} className={styles.atomRow}>
-              <span className={styles.atomField}>{label}</span>
-              <ScrollingLabel text={value} className={styles.atomLabel} />
-              <AtomBadge label={value} resolvedAtomMap={resolvedAtomMap} />
-            </div>
-          ))}
+          {(["S", "P", "O"] as const).map((slotLabel) => {
+            const derivedField = DERIVED_FIELD_FOR_LABEL[slotLabel];
+            const displayMap = { subject: displayS, predicate: displayP, object: displayO };
+            const value = displayMap[derivedField];
+            const isEditing = editingDerivedSlot?.stableKey === dt.stableKey && editingDerivedSlot?.field === derivedField;
+            return (
+              <div key={slotLabel}>
+                <div className={styles.atomRow}>
+                  <span className={styles.atomField}>{slotLabel}</span>
+                  <ScrollingLabel text={value} className={styles.atomLabel} />
+                  <AtomBadge label={value} resolvedAtomMap={resolvedAtomMap} />
+                  {canEdit && (
+                    <button
+                      type="button"
+                      className={styles.editBtn}
+                      onClick={() => onEditDerivedSlot(isEditing ? null : { stableKey: dt.stableKey, field: derivedField })}
+                    >
+                      {isEditing ? "Close" : "Edit"}
+                    </button>
+                  )}
+                </div>
+                {isEditing && searchAtomForEdit && (
+                  <EditPanel
+                    currentLabel={value}
+                    proposalId={dt.stableKey}
+                    field={DERIVED_SLOT_MAP[slotLabel].fieldKey}
+                    atomMeta={null}
+                    atomError={atomError}
+                    searchAtomForEdit={searchAtomForEdit}
+                    onSelect={(_pid, _field, _src, _termId, label) => {
+                      onSelectDerivedAtom!(dt.stableKey, derivedField, label);
+                    }}
+                    onSetNewTerm={
+                      onSetNewDerivedTerm
+                        ? (_pid, _field, label) => { onSetNewDerivedTerm(dt.stableKey, derivedField, label); }
+                        : undefined
+                    }
+                    onClose={() => onEditDerivedSlot!(null)}
+                    onClearError={onClearError}
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -519,14 +594,21 @@ function NestedRow({
   onSelectNestedAtom,
   onSetNewNestedPredicate,
   onSetNewNestedAtom,
+  editingDerivedSlot,
+  onEditDerivedSlot,
+  onSelectDerivedAtom,
+  onSetNewDerivedTerm,
   onClearError,
   resolvedAtomMap,
+  nestedTripleStatuses,
+  derivedCanonicalLabels,
 }: {
   edge: NestedProposalDraft;
   proposals: ApprovedProposalWithRole[];
   nestedEdges: NestedProposalDraft[];
   derivedTriples: DerivedTripleDraft[];
   approvedTripleStatuses: ApprovedTripleStatus[];
+  nestedTripleStatuses?: Map<string, string>;
   tripleVaultMetrics: Map<string, TripleVaultMetrics>;
   tripleMetricsLoading: boolean;
   tripleMetricsError: string | null;
@@ -548,8 +630,13 @@ function NestedRow({
   onSelectNestedAtom?: (nestedId: string, slot: "subject" | "object", label: string) => void;
   onSetNewNestedPredicate?: (nestedId: string, label: string) => void;
   onSetNewNestedAtom?: (nestedId: string, slot: "subject" | "object", label: string) => void;
+  editingDerivedSlot?: DerivedEditingSlot | null;
+  onEditDerivedSlot?: (slot: DerivedEditingSlot | null) => void;
+  onSelectDerivedAtom?: (stableKey: string, field: "subject" | "predicate" | "object", label: string) => void;
+  onSetNewDerivedTerm?: (stableKey: string, field: "subject" | "predicate" | "object", label: string) => void;
   onClearError: () => void;
   resolvedAtomMap?: Map<string, string>;
+  derivedCanonicalLabels?: Map<string, { s?: string; p?: string; o?: string }>;
 }) {
   type Resolved =
     | { kind: "proposal"; proposal: ApprovedProposalWithRole }
@@ -604,6 +691,15 @@ function NestedRow({
           expandedKey={expandedDerived}
           onToggle={onToggleDerived}
           resolvedAtomMap={resolvedAtomMap}
+          tripleTermId={nestedTripleStatuses?.get(resolved.dt.stableKey) ?? null}
+          editingDerivedSlot={editingDerivedSlot}
+          onEditDerivedSlot={onEditDerivedSlot}
+          searchAtomForEdit={searchAtomForEdit}
+          onSelectDerivedAtom={onSelectDerivedAtom}
+          onSetNewDerivedTerm={onSetNewDerivedTerm}
+          atomError={atomError}
+          onClearError={onClearError}
+          derivedCanonicalLabels={derivedCanonicalLabels}
         />
       );
     }
@@ -637,8 +733,14 @@ function NestedRow({
             onSelectNestedAtom={onSelectNestedAtom}
             onSetNewNestedPredicate={onSetNewNestedPredicate}
             onSetNewNestedAtom={onSetNewNestedAtom}
+            editingDerivedSlot={editingDerivedSlot}
+            onEditDerivedSlot={onEditDerivedSlot}
+            onSelectDerivedAtom={onSelectDerivedAtom}
+            onSetNewDerivedTerm={onSetNewDerivedTerm}
             onClearError={onClearError}
             resolvedAtomMap={resolvedAtomMap}
+            nestedTripleStatuses={nestedTripleStatuses}
+            derivedCanonicalLabels={derivedCanonicalLabels}
           />
         </div>
       );
@@ -747,14 +849,18 @@ export function DetailsMessage({
   searchAtomForEdit,
   onUpdateNestedPredicate,
   onUpdateNestedAtom,
+  onUpdateDerivedTriple,
   onSetNewTermLocal,
   resolvedAtomMap,
+  nestedTripleStatuses,
+  derivedCanonicalLabels,
 }: DetailsMessageProps) {
   const [expandedTriple, setExpandedTriple] = useState<string | null>(null);
   const [expandedDerived, setExpandedDerived] = useState<string | null>(null);
   const [editingSlot, setEditingSlot] = useState<EditingSlot | null>(null);
   const [editingNestedPredicate, setEditingNestedPredicate] = useState<string | null>(null);
   const [editingNestedAtom, setEditingNestedAtom] = useState<{ nestedId: string; slot: "subject" | "object" } | null>(null);
+  const [editingDerivedSlot, setEditingDerivedSlot] = useState<DerivedEditingSlot | null>(null);
   const [atomError, setAtomError] = useState<string | null>(null);
 
   const handleToggle = (proposalId: string) => {
@@ -809,6 +915,24 @@ export function DetailsMessage({
     : undefined;
 
   const handleSetNewNestedAtom = handleSelectNestedAtom;
+
+  const handleEditDerivedSlot = (slot: DerivedEditingSlot | null) => {
+    setEditingDerivedSlot(slot);
+    setEditingSlot(null);
+    setEditingNestedPredicate(null);
+    setEditingNestedAtom(null);
+    setAtomError(null);
+  };
+
+  const handleSelectDerivedAtom = onUpdateDerivedTriple
+    ? (stableKey: string, field: "subject" | "predicate" | "object", label: string) => {
+        onUpdateDerivedTriple(stableKey, field, label);
+        setEditingDerivedSlot(null);
+        setAtomError(null);
+      }
+    : undefined;
+
+  const handleSetNewDerivedTerm = handleSelectDerivedAtom;
 
   const handleSelectAtom = (proposalId: string, field: FieldKey, sourceSlotText: string, termId: string, label: string, metrics?: { holders: number | null; marketCap: number | null }) => {
     const body = getReferenceBodyForProposal(proposalId, draftPosts);
@@ -984,8 +1108,14 @@ export function DetailsMessage({
               onSelectNestedAtom={handleSelectNestedAtom}
               onSetNewNestedPredicate={handleSetNewNestedPredicate}
               onSetNewNestedAtom={handleSetNewNestedAtom}
+              editingDerivedSlot={editingDerivedSlot}
+              onEditDerivedSlot={handleEditDerivedSlot}
+              onSelectDerivedAtom={handleSelectDerivedAtom}
+              onSetNewDerivedTerm={handleSetNewDerivedTerm}
               onClearError={() => setAtomError(null)}
               resolvedAtomMap={resolvedAtomMap}
+              nestedTripleStatuses={nestedTripleStatuses}
+              derivedCanonicalLabels={derivedCanonicalLabels}
             />
           )}
           {draftProposals.map((p) => {
@@ -1040,8 +1170,14 @@ export function DetailsMessage({
               onSelectNestedAtom={handleSelectNestedAtom}
               onSetNewNestedPredicate={handleSetNewNestedPredicate}
               onSetNewNestedAtom={handleSetNewNestedAtom}
+              editingDerivedSlot={editingDerivedSlot}
+              onEditDerivedSlot={handleEditDerivedSlot}
+              onSelectDerivedAtom={handleSelectDerivedAtom}
+              onSetNewDerivedTerm={handleSetNewDerivedTerm}
               onClearError={() => setAtomError(null)}
               resolvedAtomMap={resolvedAtomMap}
+              nestedTripleStatuses={nestedTripleStatuses}
+              derivedCanonicalLabels={derivedCanonicalLabels}
             />
           ))}
         </div>

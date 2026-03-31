@@ -148,6 +148,7 @@ function guardToolCall(
     if (!VALID_TRIPLE_FIELDS.has(field)) return "Invalid field for link_atom.";
     if (isHexId(label)) return "Use human-readable labels, not on-chain IDs.";
     if (proposalId.startsWith("nested:")) return "Use update_triple for nested structural refs.";
+    if (proposalId.startsWith("derived:")) return "Use update_triple for derived triples.";
 
     const proposal = proposals.find((p) => p.id === proposalId);
     if (!proposal) return `Proposal ${proposalId} not found.`;

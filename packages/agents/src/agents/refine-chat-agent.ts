@@ -201,7 +201,7 @@ ${opts.parentClaim ? `REPLYING TO: "${opts.parentClaim}"` : ""}${multiPostBlock}
 11. **Blocked tools**: Some tool calls may be blocked by the system guard. If a tool is blocked, the user will see a warning. Do not assume tools always succeed.
 12. **Conciseness**: Keep responses under 2 sentences unless the user asks for details.
 13. **Splitting**: NEVER suggest splitting proactively. Only execute split_posts when user explicitly asks. If ambiguous, ask a short clarifying question. Flow: remove_triple → add_triple × N → split_posts.
-14. **Nested triples**: Some proposals are structural links (IDs starting with "nested:"). They represent how claims relate to each other (e.g., conditions, modifiers). You can edit them with update_triple the same way as regular proposals.`;
+14. **Nested triples**: Some proposals are structural links (IDs starting with "nested:"). They represent how claims relate to each other (e.g., conditions, modifiers). You can edit them with update_triple. Sub-claims within nested structures have IDs starting with "derived:" — edit their fields (subject, predicate, object) with update_triple (not link_atom).`;
 }
 
 const updateTripleTool = tool({

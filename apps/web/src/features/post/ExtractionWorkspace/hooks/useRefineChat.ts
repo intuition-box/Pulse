@@ -45,6 +45,7 @@ export type UseRefineChatParams = {
   onSplit?: () => void;
   onUpdateNestedPredicate?: (nestedId: string, label: string) => void;
   onUpdateNestedAtom?: (nestedId: string, slot: "subject" | "object", label: string) => void;
+  onUpdateDerivedTriple?: (stableKey: string, field: "subject" | "predicate" | "object", value: string) => void;
   nestedEdgesByDraft?: Map<string, NestedProposalDraft[]>;
   nestedRefLabels?: Map<string, string>;
   derivedTriples?: DerivedTripleDraft[];
@@ -108,8 +109,10 @@ function applyToolCall(
   onSplit?: () => void,
   onUpdateNestedPredicate?: (nestedId: string, label: string) => void,
   onUpdateNestedAtom?: (nestedId: string, slot: "subject" | "object", label: string) => void,
+  onUpdateDerivedTriple?: (stableKey: string, field: "subject" | "predicate" | "object", value: string) => void,
   nestedEdgesByDraft?: Map<string, NestedProposalDraft[]>,
   nestedRefLabels?: Map<string, string>,
+  derivedTriples?: DerivedTripleDraft[],
 ): ApplyResult {
   if (name === "update_triple") {
     const proposalId = args.proposalId as string;
@@ -182,6 +185,25 @@ function applyToolCall(
       return { blocked: null };
     }
 
+    if (proposalId.startsWith("derived:")) {
+      const stableKey = proposalId.slice(8);
+      if (!onUpdateDerivedTriple) return { blocked: "Derived triple editing not available." };
+      const dt = derivedTriples?.find((d) => d.stableKey === stableKey);
+      if (!dt) return { blocked: `Derived triple ${stableKey} not found.` };
+      const body = getReferenceBodyForProposal(proposalId, draftPosts);
+      if (body) {
+        const updated = {
+          subject: field === "subject" ? value : dt.subject,
+          predicate: field === "predicate" ? value : dt.predicate,
+          object: field === "object" ? value : dt.object,
+        };
+        const check = checkMeaningPreservation(body, updated);
+        if (!isAllowed(check)) return { blocked: check.reason ?? "Not related to the post text." };
+      }
+      onUpdateDerivedTriple(stableKey, field as "subject" | "predicate" | "object", value);
+      return { blocked: null };
+    }
+
     const target = proposals.find((p) => p.id === proposalId);
     if (!target) return { blocked: `Proposal ${proposalId} not found.` };
 
@@ -203,6 +225,7 @@ function applyToolCall(
     actions.onChange(proposalId, FIELD_MAP[field], value);
   } else if (name === "link_atom") {
     const proposalId = args.proposalId as string;
+    if (proposalId?.startsWith("derived:")) return { blocked: "Use update_triple for derived triples." };
     const field = args.field as keyof typeof FIELD_MAP;
     const atomId = args.atomId as string;
     const label = args.label as string;
@@ -292,6 +315,7 @@ export function useRefineChat({
   onSplit,
   onUpdateNestedPredicate,
   onUpdateNestedAtom,
+  onUpdateDerivedTriple,
   nestedEdgesByDraft,
   nestedRefLabels,
   derivedTriples,
@@ -470,8 +494,10 @@ export function useRefineChat({
                 onSplit,
                 onUpdateNestedPredicate,
                 onUpdateNestedAtom,
+                onUpdateDerivedTriple,
                 nestedEdgesByDraft,
                 nestedRefLabels,
+                derivedTriples,
               );
               if (!blocked) {
                 appliedTools.push({ name: event.payload.name, args: event.payload.args });
@@ -555,7 +581,7 @@ export function useRefineChat({
         abortRef.current = null;
       }
     },
-    [messages, proposals, proposalActions, draftPosts, sourceText, themeTitle, parentClaim, reasoningSummary, onBodyChange, onSplit, onUpdateNestedPredicate, onUpdateNestedAtom, isStreaming],
+    [messages, proposals, proposalActions, draftPosts, sourceText, themeTitle, parentClaim, reasoningSummary, onBodyChange, onSplit, onUpdateNestedPredicate, onUpdateNestedAtom, onUpdateDerivedTriple, nestedEdgesByDraft, nestedRefLabels, derivedTriples, isStreaming],
   );
 
   const stopStreaming = useCallback(() => {

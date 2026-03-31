@@ -34,6 +34,7 @@ type StructuredTripleInlineProps = {
   nestedProposals: NestedProposalDraft[];
   nestedRefLabels: Map<string, string>;
   derivedTriples?: DerivedTripleDraft[];
+  derivedCanonicalLabels?: Map<string, { s?: string; p?: string; o?: string }>;
   wrap?: boolean;
   nested?: boolean;
 };
@@ -45,6 +46,7 @@ type RenderContext = {
   nestedByStableKey: Map<string, NestedProposalDraft>;
   derivedByStableKey: Map<string, DerivedTripleDraft>;
   nestedRefLabels: Map<string, string>;
+  derivedCanonicalLabels?: Map<string, { s?: string; p?: string; o?: string }>;
 };
 
 function renderProposalTriple(
@@ -91,11 +93,12 @@ function renderNestedTerm(
 
   const derived = ctx.derivedByStableKey.get(ref.tripleKey);
   if (derived) {
+    const c = ctx.derivedCanonicalLabels?.get(derived.stableKey);
     return (
       <TripleInline
-        subject={derived.subject}
-        predicate={derived.predicate}
-        object={derived.object}
+        subject={c?.s ?? derived.subject}
+        predicate={c?.p ?? derived.predicate}
+        object={c?.o ?? derived.object}
         nested
       />
     );
@@ -127,6 +130,7 @@ function buildContext(
   nestedProposals: NestedProposalDraft[],
   nestedRefLabels: Map<string, string>,
   derivedTriples: DerivedTripleDraft[] = [],
+  derivedCanonicalLabels?: Map<string, { s?: string; p?: string; o?: string }>,
 ): RenderContext {
   return {
     proposalById: new Map(proposals.map((proposal) => [proposal.id, proposal])),
@@ -135,6 +139,7 @@ function buildContext(
     nestedByStableKey: new Map(nestedProposals.map((edge) => [edge.stableKey, edge])),
     derivedByStableKey: new Map(derivedTriples.map((dt) => [dt.stableKey, dt])),
     nestedRefLabels,
+    derivedCanonicalLabels,
   };
 }
 
@@ -144,6 +149,7 @@ type StructuredTermInlineProps = {
   nestedProposals: NestedProposalDraft[];
   nestedRefLabels: Map<string, string>;
   derivedTriples?: DerivedTripleDraft[];
+  derivedCanonicalLabels?: Map<string, { s?: string; p?: string; o?: string }>;
 };
 
 export function StructuredTermInline({
@@ -152,8 +158,9 @@ export function StructuredTermInline({
   nestedProposals,
   nestedRefLabels,
   derivedTriples,
+  derivedCanonicalLabels,
 }: StructuredTermInlineProps) {
-  const ctx = buildContext(proposals, nestedProposals, nestedRefLabels, derivedTriples);
+  const ctx = buildContext(proposals, nestedProposals, nestedRefLabels, derivedTriples, derivedCanonicalLabels);
   return <>{renderNestedTerm(termRef, ctx, new Set())}</>;
 }
 
@@ -163,10 +170,11 @@ export function StructuredTripleInline({
   nestedProposals,
   nestedRefLabels,
   derivedTriples,
+  derivedCanonicalLabels,
   wrap,
   nested = false,
 }: StructuredTripleInlineProps) {
-  const ctx = buildContext(proposals, nestedProposals, nestedRefLabels, derivedTriples);
+  const ctx = buildContext(proposals, nestedProposals, nestedRefLabels, derivedTriples, derivedCanonicalLabels);
 
   if (target.type === "error") return null;
 

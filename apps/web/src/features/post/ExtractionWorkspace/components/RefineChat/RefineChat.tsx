@@ -130,8 +130,11 @@ type RefineChatProps = {
   searchAtomForEdit?: (query: string) => Promise<AtomResult[]>;
   onUpdateNestedPredicate?: (nestedId: string, label: string) => void;
   onUpdateNestedAtom?: (nestedId: string, slot: "subject" | "object", label: string) => void;
+  onUpdateDerivedTriple?: (stableKey: string, field: "subject" | "predicate" | "object", value: string) => void;
   onSetNewTermLocal?: (proposalId: string, field: "sText" | "pText" | "oText", label: string) => void;
   resolvedAtomMap?: Map<string, string>;
+  nestedTripleStatuses?: Map<string, string>;
+  derivedCanonicalLabels?: Map<string, { s?: string; p?: string; o?: string }>;
 };
 
 export function RefineChat({
@@ -156,8 +159,11 @@ export function RefineChat({
   searchAtomForEdit,
   onUpdateNestedPredicate,
   onUpdateNestedAtom,
+  onUpdateDerivedTriple,
   onSetNewTermLocal,
   resolvedAtomMap,
+  nestedTripleStatuses,
+  derivedCanonicalLabels,
 }: RefineChatProps) {
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -236,8 +242,11 @@ export function RefineChat({
                 searchAtomForEdit={searchAtomForEdit}
                 onUpdateNestedPredicate={onUpdateNestedPredicate}
                 onUpdateNestedAtom={onUpdateNestedAtom}
+                onUpdateDerivedTriple={onUpdateDerivedTriple}
                 onSetNewTermLocal={onSetNewTermLocal}
                 resolvedAtomMap={resolvedAtomMap}
+                nestedTripleStatuses={nestedTripleStatuses}
+                derivedCanonicalLabels={derivedCanonicalLabels}
               />
             );
           }

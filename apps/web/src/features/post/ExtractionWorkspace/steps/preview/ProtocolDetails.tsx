@@ -28,6 +28,7 @@ export type TagInfo = {
   draftIndex: number;
   mainTarget: MainTarget;
   themeLabel: string;
+  themeSlug: string;
 };
 
 export type ProtocolDetailsProps = {
@@ -66,6 +67,8 @@ export type ProtocolDetailsProps = {
   mainNestedCount?: number;
   mainRefByDraft: Map<string, MainRef | null>;
   nestedTripleStatuses?: Map<string, string>;
+  metadataTripleStatuses?: Map<string, string>;
+  derivedCanonicalLabels?: Map<string, { s?: string; p?: string; o?: string }>;
 };
 
 export function ProtocolDetails({
@@ -94,12 +97,16 @@ export function ProtocolDetails({
   mainNestedCount = 0,
   mainRefByDraft,
   nestedTripleStatuses,
+  metadataTripleStatuses,
+  derivedCanonicalLabels,
 }: ProtocolDetailsProps) {
   const newTermCount = atomSummary.newAtoms.length;
   const newClaimCount = tripleSummary.newTriples.length;
 
   const stanceClaimCount = stanceTriples?.length ?? (stanceRequired ? draftPostCount : 0);
-  const effectiveTagCount = tagTriples?.length ?? tagTripleCount;
+  const allTagCount = tagTriples?.length ?? tagTripleCount;
+  const existingTagCount = tagTriples?.filter((tt) => metadataTripleStatuses?.has(`tag-${draftPosts[tt.draftIndex]?.id}-${tt.themeSlug}`)).length ?? 0;
+  const effectiveTagCount = allTagCount - existingTagCount;
   const totalNewClaims = newClaimCount + stanceClaimCount + effectiveTagCount + totalContextCount;
   const newTermCost = costReady && atomCost ? atomCost * BigInt(newTermCount) : null;
 
@@ -134,17 +141,34 @@ export function ProtocolDetails({
     const ref = mainRefByDraft.get(draft.id);
     if (!ref || ref.type === "error") return [];
     if (ref.type === "proposal" && existingProposalIds.has(ref.id)) return [];
+    if (ref.type === "nested" && draft.mainProposalId && existingProposalIds.has(draft.mainProposalId)) return [];
     const mainTarget: MainTarget = ref.type === "proposal"
       ? { type: "proposal", id: ref.id }
       : { type: "nested", nestedId: ref.nestedId, nestedStableKey: ref.nestedStableKey };
     return [{ draftId: draft.id, draftIndex, mainTarget }];
   });
 
-  const mainOuterNestedKeys = new Set<string>(
-    mainTargets
-      .filter((e) => e.mainTarget.type === "nested")
-      .map((e) => (e.mainTarget as { type: "nested"; nestedStableKey: string }).nestedStableKey),
+  // Nested mains whose proposal was matched by Phase 5 (matchedIntuitionTripleTermId set)
+  const existingNestedMainsFromPhase5 = draftPosts.flatMap((draft, draftIndex) => {
+    const ref = mainRefByDraft.get(draft.id);
+    if (!ref || ref.type !== "nested") return [];
+    if (!draft.mainProposalId || !existingProposalIds.has(draft.mainProposalId)) return [];
+    const mainTarget: MainTarget = { type: "nested", nestedId: ref.nestedId, nestedStableKey: ref.nestedStableKey };
+    return [{ draftId: draft.id, draftIndex, mainTarget }];
+  });
+  // IDs of main proposals that are rendered as nested existing — exclude from flat existing list
+  const existingNestedMainProposalIds = new Set(
+    existingNestedMainsFromPhase5.map((e) => {
+      const draft = draftPosts.find((d) => d.id === e.draftId);
+      return draft?.mainProposalId;
+    }).filter((id): id is string => !!id),
   );
+
+  const mainOuterNestedKeys = new Set<string>();
+  for (const draft of draftPosts) {
+    const ref = mainRefByDraft.get(draft.id);
+    if (ref?.type === "nested") mainOuterNestedKeys.add(ref.nestedStableKey);
+  }
 
   const nestedSubTripleKeys = new Set<string>();
   for (const edge of nestedEdges) {
@@ -161,16 +185,20 @@ export function ProtocolDetails({
   const allSupportingNestedEdges = nestedEdges.filter((edge) => !mainOuterNestedKeys.has(edge.stableKey));
   const existingNestedEdges = allSupportingNestedEdges.filter((edge) => nestedTripleStatuses?.has(edge.stableKey));
   const supportingNestedEdges = allSupportingNestedEdges.filter((edge) => !nestedTripleStatuses?.has(edge.stableKey));
-  const existingMainNested = mainTargets.filter((e) =>
-    e.mainTarget.type === "nested" && nestedTripleStatuses?.has((e.mainTarget as { nestedStableKey: string }).nestedStableKey),
-  );
+  const existingMainNested = [
+    ...mainTargets.filter((e) =>
+      e.mainTarget.type === "nested" && nestedTripleStatuses?.has((e.mainTarget as { nestedStableKey: string }).nestedStableKey),
+    ),
+    ...existingNestedMainsFromPhase5,
+  ];
   const newMainTargets = mainTargets.filter((e) =>
     e.mainTarget.type !== "nested" || !nestedTripleStatuses?.has((e.mainTarget as { nestedStableKey: string }).nestedStableKey),
   );
 
   // Derived triples that are also proposals would appear twice — filter them
   const proposalStableKeys = new Set(proposals.map((p) => p.stableKey));
-  const orphanDerivedTriples = derivedTriples.filter((dt) => !proposalStableKeys.has(dt.stableKey));
+  const orphanDerivedTriples = derivedTriples.filter((dt) => !proposalStableKeys.has(dt.stableKey) && !nestedTripleStatuses?.has(dt.stableKey));
+  const existingDerivedTriples = derivedTriples.filter((dt) => !proposalStableKeys.has(dt.stableKey) && nestedTripleStatuses?.has(dt.stableKey));
 
   const displayedClaimCount = newMainTargets.length + supportingCoreTriples.length + supportingNestedEdges.length + orphanDerivedTriples.length;
 
@@ -219,6 +247,7 @@ export function ProtocolDetails({
                           nestedProposals={nestedEdges}
                           nestedRefLabels={nestedRefLabels}
                           derivedTriples={derivedTriples}
+                          derivedCanonicalLabels={derivedCanonicalLabels}
                           nested
                           wrap
                         />
@@ -238,25 +267,28 @@ export function ProtocolDetails({
                     {supportingNestedEdges.map((edge) => (
                       <li key={edge.id}>
                         <TripleInline
-                          subject={<StructuredTermInline termRef={edge.subject} proposals={proposals} nestedProposals={nestedEdges} nestedRefLabels={nestedRefLabels} derivedTriples={derivedTriples} />}
+                          subject={<StructuredTermInline termRef={edge.subject} proposals={proposals} nestedProposals={nestedEdges} nestedRefLabels={nestedRefLabels} derivedTriples={derivedTriples} derivedCanonicalLabels={derivedCanonicalLabels} />}
                           predicate={edge.predicate}
-                          object={<StructuredTermInline termRef={edge.object} proposals={proposals} nestedProposals={nestedEdges} nestedRefLabels={nestedRefLabels} derivedTriples={derivedTriples} />}
+                          object={<StructuredTermInline termRef={edge.object} proposals={proposals} nestedProposals={nestedEdges} nestedRefLabels={nestedRefLabels} derivedTriples={derivedTriples} derivedCanonicalLabels={derivedCanonicalLabels} />}
                           nested
                           wrap
                         />
                       </li>
                     ))}
-                    {orphanDerivedTriples.map((dt) => (
-                      <li key={dt.stableKey}>
-                        <TripleInline
-                          subject={dt.subject}
-                          predicate={dt.predicate}
-                          object={dt.object}
-                          nested
-                          wrap
-                        />
-                      </li>
-                    ))}
+                    {orphanDerivedTriples.map((dt) => {
+                      const c = derivedCanonicalLabels?.get(dt.stableKey);
+                      return (
+                        <li key={dt.stableKey}>
+                          <TripleInline
+                            subject={c?.s ?? dt.subject}
+                            predicate={c?.p ?? dt.predicate}
+                            object={c?.o ?? dt.object}
+                            nested
+                            wrap
+                          />
+                        </li>
+                      );
+                    })}
                   </ul>
                 </details>
               )}
@@ -270,16 +302,17 @@ export function ProtocolDetails({
                     {stanceTriples?.map((st) => (
                       <li key={`stance-${st.draftIndex}`}>
                         <TripleInline
-                          subject={(
+                          subject={
                             <StructuredTripleInline
                               target={st.mainTarget}
                               proposals={proposals}
                               nestedProposals={nestedEdges}
                               nestedRefLabels={nestedRefLabels}
                               derivedTriples={derivedTriples}
+                              derivedCanonicalLabels={derivedCanonicalLabels}
                               nested
                             />
-                          )}
+                          }
                           predicate={st.stance === "SUPPORTS" ? "supports" : "refutes"}
                           object={st.parentClaimLabel}
                           objectNested
@@ -287,19 +320,20 @@ export function ProtocolDetails({
                         />
                       </li>
                     ))}
-                    {tagTriples?.map((tt) => (
+                    {tagTriples?.filter((tt) => !metadataTripleStatuses?.has(`tag-${draftPosts[tt.draftIndex]?.id}-${tt.themeSlug}`)).map((tt) => (
                       <li key={`tag-${tt.draftIndex}-${tt.themeLabel}`}>
                         <TripleInline
-                          subject={(
+                          subject={
                             <StructuredTripleInline
                               target={tt.mainTarget}
                               proposals={proposals}
                               nestedProposals={nestedEdges}
                               nestedRefLabels={nestedRefLabels}
                               derivedTriples={derivedTriples}
+                              derivedCanonicalLabels={derivedCanonicalLabels}
                               nested
                             />
-                          )}
+                          }
                           predicate="has tag"
                           object={tt.themeLabel}
                           wrap
@@ -319,7 +353,9 @@ export function ProtocolDetails({
                 <em className={styles.pdFeeValue}>{existingCost !== null && existingCost > 0n ? formatCost(existingCost) : "0"} {currencySymbol}</em>
               </summary>
               <ul className={styles.pdFeeDetail}>
-                {tripleSummary.existingTriples.map((t, i) => (
+                {tripleSummary.existingTriples
+                  .filter((t) => !existingNestedMainProposalIds.has(t.proposal.id))
+                  .map((t, i) => (
                   <li key={i}>
                     <TripleInline
                       subject={safeDisplayLabel(t.proposal.subjectMatchedLabel, t.proposal.sText)}
@@ -338,6 +374,7 @@ export function ProtocolDetails({
                       nestedProposals={nestedEdges}
                       nestedRefLabels={nestedRefLabels}
                       derivedTriples={derivedTriples}
+                      derivedCanonicalLabels={derivedCanonicalLabels}
                       nested
                       wrap
                     />
@@ -346,10 +383,44 @@ export function ProtocolDetails({
                 {existingNestedEdges.map((edge) => (
                   <li key={`nested-${edge.id}`}>
                     <TripleInline
-                      subject={<StructuredTermInline termRef={edge.subject} proposals={proposals} nestedProposals={nestedEdges} nestedRefLabels={nestedRefLabels} derivedTriples={derivedTriples} />}
+                      subject={<StructuredTermInline termRef={edge.subject} proposals={proposals} nestedProposals={nestedEdges} nestedRefLabels={nestedRefLabels} derivedTriples={derivedTriples} derivedCanonicalLabels={derivedCanonicalLabels} />}
                       predicate={edge.predicate}
-                      object={<StructuredTermInline termRef={edge.object} proposals={proposals} nestedProposals={nestedEdges} nestedRefLabels={nestedRefLabels} derivedTriples={derivedTriples} />}
+                      object={<StructuredTermInline termRef={edge.object} proposals={proposals} nestedProposals={nestedEdges} nestedRefLabels={nestedRefLabels} derivedTriples={derivedTriples} derivedCanonicalLabels={derivedCanonicalLabels} />}
                       nested
+                      wrap
+                    />
+                  </li>
+                ))}
+                {existingDerivedTriples.map((dt) => {
+                  const c = derivedCanonicalLabels?.get(dt.stableKey);
+                  return (
+                    <li key={`derived-existing-${dt.stableKey}`}>
+                      <TripleInline
+                        subject={c?.s ?? dt.subject}
+                        predicate={c?.p ?? dt.predicate}
+                        object={c?.o ?? dt.object}
+                        nested
+                        wrap
+                      />
+                    </li>
+                  );
+                })}
+                {tagTriples?.filter((tt) => metadataTripleStatuses?.has(`tag-${draftPosts[tt.draftIndex]?.id}-${tt.themeSlug}`)).map((tt) => (
+                  <li key={`tag-existing-${tt.draftIndex}-${tt.themeLabel}`}>
+                    <TripleInline
+                      subject={
+                        <StructuredTripleInline
+                          target={tt.mainTarget}
+                          proposals={proposals}
+                          nestedProposals={nestedEdges}
+                          nestedRefLabels={nestedRefLabels}
+                          derivedTriples={derivedTriples}
+                          derivedCanonicalLabels={derivedCanonicalLabels}
+                          nested
+                        />
+                      }
+                      predicate="has tag"
+                      object={tt.themeLabel}
                       wrap
                     />
                   </li>
