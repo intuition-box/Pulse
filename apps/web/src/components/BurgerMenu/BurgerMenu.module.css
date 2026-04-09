@@ -100,7 +100,7 @@
     height: 40px;
     gap: 4px;
     border: 1px solid var(--border-default);
-    border-radius: var(--radius-full);
+    border-radius: var(--radius-btn-irregular);
     background: var(--bg-inset);
   }
 
