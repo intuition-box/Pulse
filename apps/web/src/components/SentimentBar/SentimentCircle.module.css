@@ -12,21 +12,28 @@
   inset: 0;
 }
 
-/* ── Mode: full (52px — detail page / SentimentBar) ──────────────────────── */
-
 .full {
   width: 52px;
   height: 52px;
 }
 
-/* ── Mode: compact (24px — feed cards) ───────────────────────────────────── */
-
 .compact {
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
 }
 
-/* ── Text: full mode (centered over SVG) ─────────────────────────────────── */
+.compact .compactNumber {
+  font-size: 10px;
+}
+
+.micro {
+  width: 22px;
+  height: 22px;
+}
+
+.micro .compactNumber {
+  font-size: 9px;
+}
 
 .content {
   position: relative;
@@ -54,28 +61,13 @@
   margin-top: 1px;
 }
 
-/* ── Text: compact hover percentage ──────────────────────────────────────── */
-
-.hoverPct {
+.compactNumber {
   position: relative;
   z-index: 1;
   font-family: var(--font-mono);
-  font-size: 0.4375rem;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1;
-  opacity: 0;
-  transition: opacity var(--transition-fast);
   pointer-events: none;
-}
-
-.compact:hover .hoverPct {
-  opacity: 1;
-}
-
-/* Mobile: show % statically (no hover available) */
-@media (hover: none) {
-  .compact .hoverPct {
-    opacity: 1;
-  }
 }

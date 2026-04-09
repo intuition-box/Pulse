@@ -5,13 +5,13 @@
 .wrapper {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 /* ── Size variants ───────────────────────────────────────────────────── */
 
-.sm .btn { font-size: var(--font-size-tiny); padding: 2px var(--space-1-5); gap: 4px; }
-.md .btn { font-size: var(--font-size-sm);   padding: var(--space-1) var(--space-2); gap: 6px; }
+.sm .btn { font-size: var(--font-size-tiny); padding: 4px var(--space-2); gap: 4px; min-height: 26px; }
+.md .btn { font-size: var(--font-size-sm);   padding: 5px var(--space-2-5); gap: 6px; min-height: 30px; }
 
 /* ── Button base ─────────────────────────────────────────────────────── */
 
@@ -19,21 +19,22 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  border: none;
-  background: none;
+  border: 1px solid transparent;
+  background: transparent;
   font-family: var(--font-mono);
   font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-btn-irregular);
   transition: background var(--transition-fast), color var(--transition-fast),
-    transform 300ms var(--ease-spring);
+    border-color var(--transition-fast), transform 300ms var(--ease-spring);
   line-height: 1;
 }
 
 .btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
   color: var(--text-primary);
+  border-color: var(--border-default);
 }
 
 .btn:disabled {
@@ -46,21 +47,25 @@
 .activeSupport {
   color: var(--stance-supports-text);
   background: color-mix(in srgb, var(--stance-supports-text) 10%, transparent);
+  border-color: var(--stance-supports-accent);
 }
 
 .activeSupport:hover:not(:disabled) {
   background: color-mix(in srgb, var(--stance-supports-text) 15%, transparent);
   color: var(--stance-supports-text);
+  border-color: var(--stance-supports-accent);
 }
 
 .activeOppose {
   color: var(--stance-refutes-text);
   background: color-mix(in srgb, var(--stance-refutes-text) 10%, transparent);
+  border-color: var(--stance-refutes-accent);
 }
 
 .activeOppose:hover:not(:disabled) {
   background: color-mix(in srgb, var(--stance-refutes-text) 15%, transparent);
   color: var(--stance-refutes-text);
+  border-color: var(--stance-refutes-accent);
 }
 
 /* ── Count label ─────────────────────────────────────────────────────── */

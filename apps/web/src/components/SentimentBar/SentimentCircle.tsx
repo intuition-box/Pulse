@@ -3,15 +3,15 @@ import styles from "./SentimentCircle.module.css";
 type SentimentCircleProps = {
   supportPct: number;
   totalParticipants: number;
-  mode?: "full" | "compact";
+  mode?: "full" | "compact" | "micro";
 };
 
 const SUPPORT_COLOR = "var(--stance-supports-text)";
 const OPPOSE_COLOR = "var(--stance-refutes-text)";
 const EMPTY_COLOR = "var(--border-default)";
 
-const SIZES = { full: 52, compact: 24 } as const;
-const STROKES = { full: 4, compact: 3 } as const;
+const SIZES = { full: 52, compact: 32, micro: 22 } as const;
+const STROKES = { full: 4, compact: 3, micro: 2 } as const;
 
 export function SentimentCircle({
   supportPct,
@@ -92,8 +92,8 @@ export function SentimentCircle({
           <span className={styles.label}>votes</span>
         </div>
       )}
-      {mode === "compact" && !empty && (
-        <span className={styles.hoverPct}>{Math.round(clamped)}%</span>
+      {(mode === "compact" || mode === "micro") && !empty && (
+        <span className={styles.compactNumber}>{totalParticipants}</span>
       )}
     </div>
   );
