@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Manrope, JetBrains_Mono, Space_Grotesk } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 
 import { AppShell } from "@/app/_components/AppShell/AppShell";
 
@@ -7,21 +7,9 @@ import "./globals.module.css";
 import "@/styles/design-system.css";
 import { Providers } from "./providers";
 
-const manrope = Manrope({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
-
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-mono",
-  display: "swap",
-});
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-display",
+  variable: "--font-mono-google",
   display: "swap",
 });
 
@@ -36,7 +24,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${manrope.variable} ${jetbrainsMono.variable} ${spaceGrotesk.variable}`}>
+    <html lang="en" className={jetbrainsMono.variable}>
+      <head>
+        <link
+          rel="stylesheet"
+          href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap"
+        />
+      </head>
       <body>
         <Providers>
           <AppShell>{children}</AppShell>

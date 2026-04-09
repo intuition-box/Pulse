@@ -6,8 +6,8 @@
   /* ── Typography ─────────────────────────────────────────────────────────── */
 
   /* Font families */
-  --font-display: "Space Grotesk", "Manrope", -apple-system, sans-serif;
-  --font-sans: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Satoshi", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: "Satoshi", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", "IBM Plex Mono", "Roboto Mono", Consolas, monospace;
 
   /* Font weights */
@@ -103,14 +103,32 @@
 
 
   /* ── Border radius ─────────────────────────────────────────────────────── */
+  /* Asymmetric radius is the brand signature. All general-purpose radius
+     tokens (sm/md/lg/xl) point to irregular versions so existing components
+     inherit the look without per-file changes. */
 
-  --radius-xs: 3px;
-  --radius-sm: 4px;
-  --radius-md: 6px;
+  --radius-card-irregular: 10px 3px 10px 3px;
+  --radius-card-irregular-rev: 3px 10px 3px 10px;
+  --radius-btn-irregular: 5px 2px 5px 2px;
+  --radius-pill-irregular: 4px 2px 4px 2px;
+  --radius-avatar-irregular: 6px 2px 6px 2px;
+  --radius-modal-irregular: 14px 4px 14px 4px;
+
+  --radius-xs: 3px 1px 3px 1px;
+  --radius-sm: var(--radius-pill-irregular);
+  --radius-md: var(--radius-btn-irregular);
   --radius-base: var(--radius-md);
-  --radius-lg: 8px;
-  --radius-xl: 12px;
+  --radius-lg: 7px 2px 7px 2px;
+  --radius-xl: var(--radius-card-irregular);
+  --radius-2xl: var(--radius-modal-irregular);
   --radius-full: 999px;
+
+
+  /* ── Layout ────────────────────────────────────────────────────────────── */
+
+  --sidebar-left-width: 200px;
+  --sidebar-right-width: 320px;
+  --feed-max-width: 600px;
 
 
   /* ── Transitions ───────────────────────────────────────────────────────── */
@@ -151,13 +169,12 @@
 
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-out-back: cubic-bezier(0.34, 1.3, 0.64, 1);
+
+
   /* ── Gamification colors ───────────────────────────────────────────── */
 
   --color-gold: #FFD700;
 }
-
-
-/* MODE TOKENS — removed (dead: --mode-accent, --mode-accent-strong) */
 
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -167,7 +184,7 @@
 :root {
   /* Backgrounds — dark zinc */
   --bg-page: #0C0C0E;
-  --bg-page-gradient: radial-gradient(ellipse at 50% 0%, #0F0F14 0%, #0C0C0E 70%);
+  --bg-page-gradient: #0C0C0E;
   --bg-surface: #18181B;
   --bg-surface-hover: #1F1F23;
   --bg-muted: #27272A;
@@ -189,10 +206,12 @@
   --border-strong: #D4D4D8;
   --border-focus: #3B82F6;
 
-  /* Accent / Brand — Peach */
-  --color-accent: #EBA464;
-  --color-accent-hover: #D4894A;
-  --color-accent-light: #F2C892;
+  /* Accent / Brand */
+  --color-accent: #CFC2A3;
+  --color-accent-hover: #B8AB8C;
+  --color-accent-light: #DDD3BB;
+  --color-accent-dim: rgba(207, 194, 163, 0.08);
+  --color-accent-glow: rgba(207, 194, 163, 0.18);
 
   /* Stance — Supports (teal) */
   --stance-supports-bg: rgba(26, 144, 162, 0.12);
@@ -233,10 +252,10 @@
   --sidebar-link-text: var(--text-secondary);
   --sidebar-link-hover-bg: var(--bg-surface-hover);
 
-  /* Top bar */
-  --topbar-bg: rgba(24, 24, 27, 0.85);
-  --topbar-border: #2C2C30;
-  --topbar-height: 56px;
+  /* Top bar (legacy fallbacks for components still referencing these vars) */
+  --topbar-bg: transparent;
+  --topbar-border: transparent;
+  --topbar-height: 0px;
 }
 
 
@@ -245,12 +264,23 @@
    ──────────────────────────────────────────────────────────────────────────── */
 
 :root {
+  /* ── Debate card ──────────────────────────────────────────────────────── */
+
+  --card-radius-debate: var(--radius-card-irregular);
+  --card-radius-debate-inner: var(--radius-card-irregular-rev);
+  --font-size-debate-body: 0.9375rem;     /* 15px */
+  --font-size-debate-focus: 1.125rem;     /* 18px */
+  --font-size-debate-focus-lg: 1.25rem;   /* 20px */
+  --bg-debate-card: #1A1A1D;
+  --bg-debate-replies: #141416;
+  --bg-debate-card-hover: #1E1E22;
+
   /* ── Cards ─────────────────────────────────────────────────────────────── */
 
   --card-bg: var(--bg-surface);
   --card-border: var(--border-default);
   --card-border-hover: var(--border-hover);
-  --card-radius: var(--radius-md);
+  --card-radius: var(--radius-card-irregular);
   --card-padding: var(--spacing-card);
   --card-shadow: none;
   --card-shadow-hover: none;
@@ -279,7 +309,7 @@
 
   /* Button sizing */
   --button-padding: 0.75rem 1.5rem;
-  --button-radius: var(--radius-sm);
+  --button-radius: var(--radius-btn-irregular);
   --button-font-weight: var(--font-weight-semibold);
 
 
@@ -287,7 +317,7 @@
 
   /* Stance badge */
   --badge-stance-padding: 0.35rem 0.75rem;
-  --badge-stance-radius: var(--radius-sm);
+  --badge-stance-radius: var(--radius-pill-irregular);
   --badge-stance-font-size: var(--font-size-tiny);
   --badge-stance-font-weight: var(--font-weight-semibold);
   --badge-stance-letter-spacing: var(--letter-spacing-wider);
@@ -300,15 +330,15 @@
   --input-text: var(--text-primary);
   --input-placeholder: var(--text-muted);
   --input-padding: 0.75rem 1rem;
-  --input-radius: var(--radius-sm);
+  --input-radius: var(--radius-btn-irregular);
 
 
   /* ── Focus rings ───────────────────────────────────────────────────────── */
 
-  --focus-ring-color: #3B82F6;
+  --focus-ring-color: var(--color-accent);
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
-  --focus-ring-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+  --focus-ring-shadow: 0 0 0 3px var(--color-accent-glow);
 }
 
 
@@ -391,10 +421,10 @@
 }
 
 
-/* Focus visible (accessibility) */
+/* Focus visible (accessibility) — subtle ring matching brand */
 *:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
+  outline: 1px solid var(--color-accent);
+  outline-offset: 1px;
 }
 
 
@@ -425,7 +455,7 @@ body {
   font-size: var(--font-size-base);
   line-height: var(--line-height-relaxed);
   color: var(--text-primary);
-  background: var(--bg-page-gradient);
+  background: var(--bg-page);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
