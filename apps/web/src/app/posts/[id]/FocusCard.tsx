@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import type { ReactNode } from "react";
 import { Plus, Loader2 } from "lucide-react";
 
-import { ProtocolBadge } from "@/components/ProtocolBadge/ProtocolBadge";
 import { ThemeBadge } from "@/components/ThemeBadge/ThemeBadge";
 import { ThemePicker } from "@/components/ThemePicker/ThemePicker";
 
@@ -24,7 +23,7 @@ type FocusCardProps = {
   onCreateTheme?: (name: string) => void;
   isAddingTheme?: boolean;
   addThemeError?: string | null;
-  onOpenInspector: () => void;
+  onOpenInspector?: () => void;
   thumbSlot?: ReactNode;
   children?: ReactNode;
 };
@@ -105,10 +104,10 @@ export function FocusCard({
       <p className={styles.body}>{post.body}</p>
       {thumbSlot}
       {children}
-      {post.tripleLinks.length > 0 && (
-        <ProtocolBadge onClick={onOpenInspector} className={styles.badgePosition}>
-          INSPECTOR
-        </ProtocolBadge>
+      {onOpenInspector && post.tripleLinks.length > 0 && (
+        <button type="button" className={styles.structureLink} onClick={onOpenInspector}>
+          View structure &rarr;
+        </button>
       )}
     </section>
   );

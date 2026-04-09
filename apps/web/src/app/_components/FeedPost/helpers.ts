@@ -3,16 +3,8 @@ export function truncate(text: string, maxLen: number) {
   return text.slice(0, maxLen).trimEnd() + "\u2026";
 }
 
-export function formatRelativeTime(isoDate: string) {
-  const diff = Date.now() - new Date(isoDate).getTime();
-  const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  if (days < 30) return `${days}d`;
+export function formatPostDate(isoDate: string) {
   const d = new Date(isoDate);
-  const month = d.toLocaleString(undefined, { month: "short" });
+  const month = d.toLocaleString("en", { month: "short" });
   return `${month} ${d.getDate()}, ${d.getFullYear()}`;
 }
