@@ -4,6 +4,7 @@ import Link from "next/link";
 import { MessageSquare, Network } from "lucide-react";
 
 import { Avatar } from "@/components/Avatar/Avatar";
+import { UserPopover } from "@/components/UserPopover/UserPopover";
 import { ThemeBadge } from "@/components/ThemeBadge/ThemeBadge";
 import { ConnectedThumbVote } from "@/components/ThumbVote";
 import { SentimentCircle } from "@/components/SentimentBar/SentimentCircle";
@@ -69,15 +70,21 @@ export function DebateCardView({
 
   return (
     <article className={cardClasses}>
-      <Link
-        href={`/posts/${post.id}`}
-        className={styles.mainLink}
-        target={linkTarget}
-        rel={linkTarget === "_blank" ? "noopener noreferrer" : undefined}
-      >
+      <div className={styles.main}>
+        <Link
+          href={`/posts/${post.id}`}
+          className={styles.mainLink}
+          aria-label={`Open post by ${authorLabel(post.user)}`}
+          target={linkTarget}
+          rel={linkTarget === "_blank" ? "noopener noreferrer" : undefined}
+        />
         <header className={styles.header}>
-          <Avatar src={post.user.avatar} name={authorLabel(post.user)} size="sm" />
-          <span className={styles.author}>{authorLabel(post.user)}</span>
+          <UserPopover address={post.user.address}>
+            <button type="button" className={styles.authorTrigger}>
+              <Avatar src={post.user.avatar} name={authorLabel(post.user)} size="sm" />
+              <span className={styles.author}>{authorLabel(post.user)}</span>
+            </button>
+          </UserPopover>
           <span className={styles.time} suppressHydrationWarning>
             {formatPostDate(post.createdAt)}
           </span>
@@ -99,7 +106,7 @@ export function DebateCardView({
           )}
         </header>
         <p className={styles.body}>{post.body}</p>
-      </Link>
+      </div>
 
       <div className={styles.actions}>
         <div className={`${styles.countReplyZone} ${onReply ? styles.hasSwap : ""} ${activeReplyStance ? styles.swapLocked : ""}`}>

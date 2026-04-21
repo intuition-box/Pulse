@@ -1,0 +1,230 @@
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-2) 0;
+}
+
+/* ── Sections ────────────────────────────────────────────────────────────── */
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.sectionTitle {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.divider {
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+/* ── Provider buttons ────────────────────────────────────────────────────── */
+
+.providerList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.providerBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
+  padding: 10px var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-btn-irregular);
+  background: var(--provider-color);
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity var(--transition-fast);
+}
+
+.providerBtn:hover {
+  opacity: 0.85;
+}
+
+.providerConnected {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 10px var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-btn-irregular);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.providerCheck {
+  color: var(--color-success);
+  display: flex;
+  align-items: center;
+}
+
+.providerName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.providerDisconnect {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.providerDisconnect:hover {
+  color: var(--color-error);
+  background: var(--bg-hover);
+}
+
+/* ── Radio group (name chooser) ──────────────────────────────────────────── */
+
+.radioGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.radioLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
+  padding: var(--space-1-5) var(--space-2);
+  border-radius: var(--radius-btn-irregular);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.radioLabel:hover {
+  background: var(--bg-hover);
+}
+
+.radioInput {
+  accent-color: var(--color-accent);
+  margin: 0;
+  flex-shrink: 0;
+}
+
+.radioText {
+  font-size: 13px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.radioHint {
+  color: var(--text-muted);
+  font-size: var(--font-size-tiny);
+}
+
+.customNameInput {
+  flex: 1;
+  min-width: 120px;
+  font-size: 13px;
+  padding: var(--space-1) var(--space-2);
+}
+
+/* ── Avatar grid ─────────────────────────────────────────────────────────── */
+
+.avatarGrid {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.avatarOption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: var(--space-2);
+  border: 2px solid transparent;
+  border-radius: var(--radius-card-irregular);
+  background: transparent;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.avatarOption:hover {
+  background: var(--bg-hover);
+}
+
+.avatarSelected {
+  border-color: var(--color-accent);
+  background: var(--color-accent-dim);
+}
+
+.avatarLabel {
+  font-size: var(--font-size-tiny);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ── Bio ─────────────────────────────────────────────────────────────────── */
+
+.bioInput {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-btn-irregular);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: var(--line-height-normal);
+  resize: vertical;
+  min-height: 48px;
+  transition: border-color var(--transition-fast);
+}
+
+.bioInput:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.bioInput::placeholder {
+  color: var(--text-muted);
+}
+
+.charCount {
+  font-size: var(--font-size-tiny);
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* ── Actions ─────────────────────────────────────────────────────────────── */
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
+}

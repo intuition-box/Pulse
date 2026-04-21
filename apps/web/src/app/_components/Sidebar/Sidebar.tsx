@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Compass, TrendingUp, ChevronsLeft, ChevronsRight, Wallet } from "lucide-react";
+import { Home, Compass, TrendingUp, ChevronsLeft, ChevronsRight, Wallet, LogOut, UserPen } from "lucide-react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 
+import { Avatar } from "@/components/Avatar/Avatar";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { useOnboarding } from "@/features/onboarding/OnboardingContext";
+import { SOCIAL_ICONS } from "@/components/SocialIcons/SocialIcons";
 import { useSidebar } from "./SidebarContext";
 import styles from "./Sidebar.module.css";
 
@@ -13,6 +18,68 @@ const NAV_ITEMS = [
   { href: "/themes", label: "Explore", icon: Compass },
   { href: "/trending", label: "Trending", icon: TrendingUp },
 ] as const;
+
+function UserMenu({
+  walletDisplayName,
+  onDisconnect,
+}: {
+  walletDisplayName: string;
+  onDisconnect: () => void;
+}) {
+  const { profile, connectedProviders } = useUserProfile();
+  const { openEditDialog } = useOnboarding();
+
+  const displayName = profile?.displayName || walletDisplayName;
+  const avatarSrc = profile?.avatar || null;
+
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button type="button" className={styles.userMenuTrigger}>
+          <Avatar src={avatarSrc} name={displayName} size="sm" />
+          <span className={styles.connectBtnLabel}>{displayName}</span>
+        </button>
+      </DropdownMenu.Trigger>
+
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          className={styles.dropdownContent}
+          side="right"
+          align="end"
+          sideOffset={8}
+        >
+          {connectedProviders.length > 0 && (
+            <>
+              <div className={styles.socialBadges}>
+                {connectedProviders.map((p) => {
+                  const Icon = SOCIAL_ICONS[p.provider];
+                  return <Icon key={p.provider} />;
+                })}
+              </div>
+              <DropdownMenu.Separator className={styles.dropdownSeparator} />
+            </>
+          )}
+
+          <DropdownMenu.Item
+            className={styles.dropdownItem}
+            onSelect={openEditDialog}
+          >
+            <UserPen size={14} />
+            <span>Edit profile</span>
+          </DropdownMenu.Item>
+
+          <DropdownMenu.Item
+            className={styles.dropdownItem}
+            onSelect={onDisconnect}
+          >
+            <LogOut size={14} />
+            <span>Disconnect</span>
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -74,16 +141,10 @@ export function Sidebar() {
               }
 
               return (
-                <button
-                  type="button"
-                  onClick={openAccountModal}
-                  className={`${styles.connectBtn} ${styles.connectBtnActive}`}
-                >
-                  <Wallet size={14} />
-                  <span className={styles.connectBtnLabel}>
-                    {account.displayName}
-                  </span>
-                </button>
+                <UserMenu
+                  walletDisplayName={account.displayName}
+                  onDisconnect={openAccountModal}
+                />
               );
             }}
           </ConnectButton.Custom>

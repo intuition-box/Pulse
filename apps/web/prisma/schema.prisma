@@ -19,6 +19,17 @@ model User {
   isWeb2User     Boolean      @default(false)
   lastActiveAt   DateTime     @default(now())
   onboardingStep Int          @default(0)
+  bio            String?
+  email          String?
+  discordId      String?      @unique
+  discordName    String?
+  discordAvatar  String?
+  xId            String?      @unique
+  xName          String?
+  xAvatar        String?
+  githubId       String?      @unique
+  githubName     String?
+  githubAvatar   String?
   posts          Post[]
   submissions    Submission[]
 

@@ -11,6 +11,7 @@ import * as Tooltip from "@radix-ui/react-tooltip";
 import { intuitionTestnet } from "@/lib/chain";
 import { ToastProvider } from "@/components/Toast/ToastContext";
 import { useSessionAuth } from "@/features/post/ExtractionWorkspace/hooks/useSessionAuth";
+import { OnboardingGuard } from "@/features/onboarding/OnboardingGuard";
 
 const config = getDefaultConfig({
   appName: "Debate Market",
@@ -50,9 +51,11 @@ export function Providers({ children }: PropsWithChildren) {
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider>
           <SiweOnConnect />
-          <Tooltip.Provider delayDuration={300}>
-            <ToastProvider>{children}</ToastProvider>
-          </Tooltip.Provider>
+          <OnboardingGuard>
+            <Tooltip.Provider delayDuration={300}>
+              <ToastProvider>{children}</ToastProvider>
+            </Tooltip.Provider>
+          </OnboardingGuard>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

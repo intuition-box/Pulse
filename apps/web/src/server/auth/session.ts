@@ -77,7 +77,7 @@ export function createSessionCookie(userId: string, address: string, chainId: nu
   };
   const token = sign(payload);
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-  return `${COOKIE_NAME}=${token}; HttpOnly; SameSite=Strict; Path=/${secure}; Max-Age=${SESSION_MAX_AGE_S}`;
+  return `${COOKIE_NAME}=${token}; HttpOnly; SameSite=Lax; Path=/${secure}; Max-Age=${SESSION_MAX_AGE_S}`;
 }
 
 /**
@@ -105,7 +105,7 @@ export function getSessionFromRequest(request: Request): SessionData | null {
  * Return a Set-Cookie header value that clears the session.
  */
 export function clearSessionCookie(): string {
-  return `${COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`;
+  return `${COOKIE_NAME}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`;
 }
 
 /**

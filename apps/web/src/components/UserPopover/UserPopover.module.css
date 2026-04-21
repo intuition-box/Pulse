@@ -1,0 +1,111 @@
+.content {
+  width: 260px;
+  padding: var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card-irregular);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  animation: popoverFadeIn 150ms ease;
+}
+
+@keyframes popoverFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.arrow {
+  fill: var(--bg-surface);
+}
+
+/* ── Identity row ────────────────────────────────────────────────────────── */
+
+.identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
+}
+
+.names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.displayName {
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.address {
+  font-size: var(--font-size-2xs);
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+/* ── Bio ─────────────────────────────────────────────────────────────────── */
+
+.bio {
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-secondary);
+  line-height: var(--line-height-normal);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── Stats ────────────────────────────────────────────────────────────────── */
+
+.stats {
+  font-size: var(--font-size-tiny);
+  color: var(--text-muted);
+}
+
+/* ── Social badges ────────────────────────────────────────────────────────── */
+
+.socials {
+  display: flex;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+}
+
+/* ── Loading skeleton ─────────────────────────────────────────────────────── */
+
+.skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+}
+
+.skeletonLine {
+  height: 12px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-hover);
+  animation: shimmer 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes shimmer {
+  from {
+    opacity: 0.4;
+  }
+  to {
+    opacity: 0.8;
+  }
+}
