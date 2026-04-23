@@ -67,6 +67,7 @@
 }
 
 .author {
+  font-style: normal;
   font-size: var(--font-size-tiny);
   font-weight: 600;
   color: var(--text-muted);

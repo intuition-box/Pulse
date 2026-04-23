@@ -107,7 +107,7 @@ export function FocusCard({
           </div>
         )}
       </div>
-      <p className={styles.body}>{post.body}</p>
+      <h1 className={styles.body}>{post.body}</h1>
       {thumbSlot}
       {children}
       {onOpenInspector && post.tripleLinks.length > 0 && (

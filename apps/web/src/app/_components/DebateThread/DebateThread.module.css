@@ -22,14 +22,18 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
 .subRepliesZone {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
 }
 
 /* Replies indented + rounded L-bend connector linking each to parent. */

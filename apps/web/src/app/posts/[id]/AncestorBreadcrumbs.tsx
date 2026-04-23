@@ -10,14 +10,16 @@ export function AncestorBreadcrumbs({ breadcrumbs }: AncestorBreadcrumbsProps) {
   if (breadcrumbs.length === 0) return null;
 
   return (
-    <section>
-      <div className={styles.ancestors}>
+    <nav aria-label="Post ancestors">
+      <ol className={styles.ancestors}>
         {breadcrumbs.slice(-3).map((ancestor) => (
-          <Link key={ancestor.id} href={`/posts/${ancestor.id}`} className={styles.card}>
-            <p className={styles.body}>{ancestor.body}</p>
-          </Link>
+          <li key={ancestor.id} className={styles.item}>
+            <Link href={`/posts/${ancestor.id}`} className={styles.card}>
+              <p className={styles.body}>{ancestor.body}</p>
+            </Link>
+          </li>
         ))}
-      </div>
-    </section>
+      </ol>
+    </nav>
   );
 }

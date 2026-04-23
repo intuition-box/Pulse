@@ -232,6 +232,7 @@ export function HomePageClient({ trending, feed, themes, loadMoreReplies, stats 
     <div className={styles.pageWrapper}>
       <div className={styles.page}>
         <div className={styles.feedColumn}>
+          <h1 className="sr-only">PULSE feed</h1>
           {isMobile && <WeekVoteBanner />}
           {isMobile && <HotDebates posts={trending} sentimentMap={sentimentMap} />}
 

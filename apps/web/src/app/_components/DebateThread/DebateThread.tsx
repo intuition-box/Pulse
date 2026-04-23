@@ -136,7 +136,7 @@ export function DebateThread({
       )}
 
       {hasReplies && (
-        <div className={styles.repliesZone}>
+        <ol className={styles.repliesZone}>
           {allReplies.map((reply, idx) => {
             const replyTripleTermId = reply.mainTripleTermIds?.[0] ?? null;
             const isLastReply = idx === allReplies.length - 1 && !hasMore;
@@ -160,7 +160,7 @@ export function DebateThread({
             };
 
             return (
-              <div
+              <li
                 key={reply.id}
                 className={styles.replyWrap}
                 data-last={isLastReply ? "true" : "false"}
@@ -179,7 +179,7 @@ export function DebateThread({
                 )}
 
                 {reply.subReplies && reply.subReplies.length > 0 && (
-                  <div className={styles.subRepliesZone}>
+                  <ol className={styles.subRepliesZone}>
                     {reply.subReplies.map((sub, subIdx) => {
                       const subTripleTermId = sub.mainTripleTermIds?.[0] ?? null;
                       const isLastSub = subIdx === (reply.subReplies?.length ?? 0) - 1;
@@ -196,7 +196,7 @@ export function DebateThread({
                       };
 
                       return (
-                        <div
+                        <li
                           key={sub.id}
                           className={styles.replyWrap}
                           data-last={isLastSub ? "true" : "false"}
@@ -212,25 +212,25 @@ export function DebateThread({
                           {composerSlot?.(sub.id) != null && (
                             <div className={styles.composerSlot}>{composerSlot(sub.id)}</div>
                           )}
-                        </div>
+                        </li>
                       );
                     })}
-                  </div>
+                  </ol>
                 )}
-              </div>
+              </li>
             );
           })}
+        </ol>
+      )}
 
-          {hasMore && (
-            <button
-              className={styles.showMore}
-              onClick={handleLoadMore}
-              disabled={loading}
-            >
-              {loading ? "Loading..." : `Show ${remaining} more ${remaining === 1 ? "reply" : "replies"}`}
-            </button>
-          )}
-        </div>
+      {hasReplies && hasMore && (
+        <button
+          className={styles.showMore}
+          onClick={handleLoadMore}
+          disabled={loading}
+        >
+          {loading ? "Loading..." : `Show ${remaining} more ${remaining === 1 ? "reply" : "replies"}`}
+        </button>
       )}
     </div>
   );

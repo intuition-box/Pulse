@@ -70,10 +70,10 @@ export function DebateCardView({
       >
         <header className={styles.header}>
           <Avatar src={post.user.avatar} name={authorLabel(post.user)} size="sm" />
-          <span className={styles.author}>{authorLabel(post.user)}</span>
-          <span className={styles.time} suppressHydrationWarning>
+          <cite className={styles.author}>{authorLabel(post.user)}</cite>
+          <time className={styles.time} dateTime={post.createdAt} suppressHydrationWarning>
             {formatPostDate(post.createdAt)}
-          </span>
+          </time>
           {post.themes && post.themes[0] && (
             <span className={styles.themeBadge}>
               <ThemeBadge size="sm" slug={post.themes[0].slug}>
@@ -85,7 +85,7 @@ export function DebateCardView({
         <p className={styles.body}>{post.body}</p>
       </Link>
 
-      <div className={styles.actions}>
+      <footer className={styles.actions}>
         {sentimentData && (
           <span className={styles.footerSentiment}>
             <SentimentCircle
@@ -166,7 +166,7 @@ export function DebateCardView({
             </button>
           )}
         </span>
-      </div>
+      </footer>
     </article>
   );
 }

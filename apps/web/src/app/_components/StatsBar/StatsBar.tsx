@@ -22,21 +22,21 @@ export function StatsBar({ posts, replies, postsDelta, repliesDelta }: Props) {
   const pd = formatDelta(postsDelta);
   const rd = formatDelta(repliesDelta);
   return (
-    <div className={styles.bar}>
+    <dl className={styles.bar}>
       <div className={styles.stat}>
-        <Label size="xs">Total posts</Label>
-        <span className={styles.value}>
+        <dt><Label size="xs">Total posts</Label></dt>
+        <dd className={styles.value}>
           {formatNumber(posts)}
           {pd && <span className={styles.delta}>{pd} 24h</span>}
-        </span>
+        </dd>
       </div>
       <div className={styles.stat}>
-        <Label size="xs">Total replies</Label>
-        <span className={styles.value}>
+        <dt><Label size="xs">Total replies</Label></dt>
+        <dd className={styles.value}>
           {formatNumber(replies)}
           {rd && <span className={styles.delta}>{rd} 24h</span>}
-        </span>
+        </dd>
       </div>
-    </div>
+    </dl>
   );
 }
