@@ -115,7 +115,7 @@ export function useSessionAuth({ setMessage }: UseSessionAuthParams) {
     const message = buildSiweMessage({
       domain,
       address,
-      statement: "Sign in to write on Debate Market.",
+      statement: "Sign in to write on PULSE.",
       uri,
       chainId: activeChainId,
       nonce,

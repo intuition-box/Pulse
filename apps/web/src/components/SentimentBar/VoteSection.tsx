@@ -1,5 +1,7 @@
 "use client";
 
+// Smart wrapper: fetches sentiment, toggles between display bar and confidence slider. Used by debate page.
+
 import { useCallback, useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 

@@ -5,13 +5,37 @@
 .wrapper {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
 }
 
 /* ── Size variants ───────────────────────────────────────────────────── */
 
-.sm .btn { font-size: var(--font-size-tiny); padding: 2px var(--space-1-5); gap: 4px; }
-.md .btn { font-size: var(--font-size-sm);   padding: var(--space-1) var(--space-2); gap: 6px; }
+.sm .btn { font-size: var(--font-size-tiny); padding: 4px var(--space-2); gap: 4px; min-height: 26px; }
+.md .btn { font-size: var(--font-size-sm);   padding: 5px var(--space-2-5); gap: 6px; min-height: 30px; }
+
+/* Inline variant — no button chrome, just icon + count inline. Hover tints color only. */
+.inline.wrapper { gap: 8px; }
+.inline .btn {
+  padding: 0;
+  min-height: auto;
+  border: none;
+  background: none;
+  font-size: var(--font-size-mono-md);
+  gap: 3px;
+  color: var(--text-muted);
+  transition: color var(--transition-fast);
+}
+.inline .btn:hover:not(:disabled) {
+  background: none;
+  border-color: transparent;
+}
+.inline .btn:nth-child(1):hover:not(:disabled) { color: var(--stance-supports-text); }
+.inline .btn:nth-child(2):hover:not(:disabled) { color: var(--stance-refutes-text); }
+.inline .activeSupport { background: none; border: none; color: var(--stance-supports-text); }
+.inline .activeOppose  { background: none; border: none; color: var(--stance-refutes-text); }
+.inline .voteBounce { transform: scale(1.15); }
+.inline .voteBounce.activeSupport,
+.inline .voteBounce.activeOppose { background: none; }
 
 /* ── Button base ─────────────────────────────────────────────────────── */
 
@@ -19,21 +43,22 @@
   position: relative;
   display: inline-flex;
   align-items: center;
-  border: none;
-  background: none;
+  border: 1px solid transparent;
+  background: transparent;
   font-family: var(--font-mono);
   font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-btn-irregular);
   transition: background var(--transition-fast), color var(--transition-fast),
-    transform 300ms var(--ease-spring);
+    border-color var(--transition-fast), transform 300ms var(--ease-spring);
   line-height: 1;
 }
 
 .btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text-primary) 6%, transparent);
+  background: color-mix(in srgb, var(--text-primary) 4%, transparent);
   color: var(--text-primary);
+  border-color: var(--border-default);
 }
 
 .btn:disabled {
@@ -46,21 +71,25 @@
 .activeSupport {
   color: var(--stance-supports-text);
   background: color-mix(in srgb, var(--stance-supports-text) 10%, transparent);
+  border-color: var(--stance-supports-accent);
 }
 
 .activeSupport:hover:not(:disabled) {
   background: color-mix(in srgb, var(--stance-supports-text) 15%, transparent);
   color: var(--stance-supports-text);
+  border-color: var(--stance-supports-accent);
 }
 
 .activeOppose {
   color: var(--stance-refutes-text);
   background: color-mix(in srgb, var(--stance-refutes-text) 10%, transparent);
+  border-color: var(--stance-refutes-accent);
 }
 
 .activeOppose:hover:not(:disabled) {
   background: color-mix(in srgb, var(--stance-refutes-text) 15%, transparent);
   color: var(--stance-refutes-text);
+  border-color: var(--stance-refutes-accent);
 }
 
 /* ── Count label ─────────────────────────────────────────────────────── */
@@ -97,7 +126,7 @@
   top: -4px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 0.625rem;
+  font-size: var(--font-size-mono-sm);
   font-weight: 700;
   opacity: 0;
   pointer-events: none;

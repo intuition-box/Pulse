@@ -12,7 +12,7 @@ function getSecret(): string {
     throw new Error("SESSION_SECRET env var is required in production (min 32 chars).");
   }
   // Dev fallback — deterministic so sessions survive server restarts
-  return "dev-session-secret-debate-market-32chars!!";
+  return "dev-session-secret-pulse-32chars!!!!!";
 }
 
 // ─── Token helpers (HMAC-SHA256, no external dependency) ─────────────────────

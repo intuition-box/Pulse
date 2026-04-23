@@ -1,35 +1,33 @@
 .avatar {
   flex-shrink: 0;
-  border-radius: 50%;
   overflow: hidden;
 }
 
+.irregular { border-radius: var(--radius-avatar-irregular); }
+.circular { border-radius: 50%; }
+
+.xs {
+  width: 16px;
+  height: 16px;
+}
+
 .sm {
-  width: 24px;
-  height: 24px;
-  font-size: var(--font-size-tiny);
+  width: 22px;
+  height: 22px;
 }
 
 .md {
   width: 28px;
   height: 28px;
-  font-size: var(--font-size-tiny);
 }
 
 .lg {
   width: 40px;
   height: 40px;
-  font-size: var(--font-size-small);
 }
 
 .placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-muted);
-  font-family: var(--font-display);
-  font-weight: 700;
-  color: var(--text-secondary);
+  display: block;
 }
 
 .img {

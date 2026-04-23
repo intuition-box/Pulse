@@ -1,0 +1,63 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-btn-irregular);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast), opacity var(--transition-fast);
+}
+
+.chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Sizes ───────────────────────────────────────────────────────────── */
+
+.sm {
+  padding: 3px 10px;
+  font-size: var(--font-size-mono-xs);
+}
+
+.md {
+  padding: 4px 12px;
+  font-size: var(--font-size-mono-sm);
+}
+
+/* ── Tones ───────────────────────────────────────────────────────────── */
+
+.neutral:hover:not(:disabled),
+.neutral.active {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+}
+
+.supports:hover:not(:disabled),
+.supports.active {
+  color: var(--stance-supports-text);
+  border-color: var(--stance-supports-accent);
+  background: color-mix(in srgb, var(--stance-supports-accent) 6%, transparent);
+}
+
+.refutes:hover:not(:disabled),
+.refutes.active {
+  color: var(--stance-refutes-text);
+  border-color: var(--stance-refutes-accent);
+  background: color-mix(in srgb, var(--stance-refutes-accent) 6%, transparent);
+}
+
+.accent:hover:not(:disabled),
+.accent.active {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: var(--color-accent-dim);
+}

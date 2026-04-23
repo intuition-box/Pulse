@@ -12,7 +12,7 @@
 
 .successIcon {
   margin: 0;
-  font-size: 2rem;
+  font-size: var(--font-size-hero);
   color: var(--color-success);
 }
 
@@ -64,7 +64,7 @@
 
 .errorIcon {
   margin: 0;
-  font-size: 2rem;
+  font-size: var(--font-size-hero);
   color: var(--color-amber-400);
 }
 

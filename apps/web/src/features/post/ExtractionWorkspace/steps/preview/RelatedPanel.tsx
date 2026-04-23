@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-import { ReplyCard } from "@/app/_components/ReplyCard/ReplyCard";
+import { DebateCardView, type DebatePostData } from "@/app/_components/DebateThread/DebateCardView";
 import { labels } from "@/lib/vocabulary";
 
 import type { DuplicateInfo } from "../../hooks/useDuplicateCheck";
@@ -31,28 +31,29 @@ export function RelatedPanel({ duplicatesByDraft }: RelatedPanelProps) {
   return (
     <div className={styles.relatedPanel}>
       <p className={styles.relatedTitle}>{labels.duplicateRelatedTitle}</p>
-      {unique.map((d) => (
-        <div key={d.postId} className={styles.relatedItem}>
-          {d.parentPostBody && (
-            <p className={styles.relatedContext}>
-              ↩ {d.parentPostBody}
-            </p>
-          )}
-          <ReplyCard
-            id={d.postId}
-            body={d.postBody}
-            createdAt={d.createdAt}
-            replyCount={d.replyCount}
-            author={{
-              displayName: d.authorDisplayName,
-              address: d.authorAddress,
-              avatar: d.authorAvatar,
-            }}
-            variant="compact"
-            linkTarget="_blank"
-          />
-        </div>
-      ))}
+      {unique.map((d) => {
+        const postData: DebatePostData = {
+          id: d.postId,
+          body: d.postBody,
+          createdAt: d.createdAt,
+          user: {
+            displayName: d.authorDisplayName,
+            address: d.authorAddress,
+            avatar: d.authorAvatar,
+          },
+          replyCount: d.replyCount,
+        };
+        return (
+          <div key={d.postId} className={styles.relatedItem}>
+            {d.parentPostBody && (
+              <p className={styles.relatedContext}>
+                ↩ {d.parentPostBody}
+              </p>
+            )}
+            <DebateCardView post={postData} dense linkTarget="_blank" />
+          </div>
+        );
+      })}
     </div>
   );
 }

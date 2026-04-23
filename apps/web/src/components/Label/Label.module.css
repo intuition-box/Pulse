@@ -1,0 +1,18 @@
+.label {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: 1.2;
+  margin: 0;
+}
+
+.xs {
+  font-size: var(--font-size-mono-xs);
+  letter-spacing: 0.18em;
+}
+
+.sm {
+  font-size: var(--font-size-mono-sm);
+  letter-spacing: 0.2em;
+}

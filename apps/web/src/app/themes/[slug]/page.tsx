@@ -29,6 +29,8 @@ export default async function ThemePage({ params }: ThemePageProps) {
     orderBy: { createdAt: "desc" },
     include: {
       replies: { select: { id: true } }, // Count replies
+      user: { select: { displayName: true, address: true, avatar: true } },
+      postThemes: { include: { theme: { select: { slug: true, name: true } } } },
       tripleLinks: {
         where: { role: "MAIN" },
         orderBy: { createdAt: "asc" },
@@ -42,6 +44,12 @@ export default async function ThemePage({ params }: ThemePageProps) {
     body: post.body,
     createdAt: post.createdAt.toISOString(),
     replyCount: post.replies.length,
+    user: {
+      displayName: post.user.displayName,
+      address: post.user.address,
+      avatar: post.user.avatar,
+    },
+    themes: post.postThemes.map((pt) => ({ slug: pt.theme.slug, name: pt.theme.name })),
     mainTripleTermIds: post.tripleLinks.map(l => l.termId),
   }));
 

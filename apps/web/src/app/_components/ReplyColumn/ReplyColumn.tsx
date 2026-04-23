@@ -1,4 +1,4 @@
-import { ReplyCard } from "@/app/_components/ReplyCard/ReplyCard";
+import { DebateCardView, type DebatePostData } from "@/app/_components/DebateThread/DebateCardView";
 import type { SentimentMap } from "@/hooks/useSentimentBatch";
 import type { ReplyNode } from "@/lib/types/reply";
 
@@ -38,7 +38,11 @@ const STANCE_MAP: Record<Stance, "SUPPORTS" | "REFUTES"> = {
   refutes: "REFUTES",
 };
 
+const FALLBACK_AUTHOR = { displayName: null, address: "0x", avatar: null };
+
 export function ReplyColumn({ stance, title, replies, onAdd, onBadgeClick, sentimentMap, themes }: ReplyColumnProps) {
+  const stanceValue = STANCE_MAP[stance];
+
   return (
     <div className={`${styles.column} ${styles[stance]}`}>
       <div className={styles.header}>
@@ -68,21 +72,29 @@ export function ReplyColumn({ stance, title, replies, onAdd, onBadgeClick, senti
         ) : (
           replies.map((reply) => {
             const mainTripleTermId = reply.mainTripleTermIds?.[0];
+            const sentimentData = mainTripleTermId
+              ? sentimentMap?.[mainTripleTermId] ?? null
+              : null;
+
+            const postData: DebatePostData = {
+              id: reply.id,
+              body: reply.body,
+              createdAt: reply.createdAt,
+              user: reply.author ?? FALLBACK_AUTHOR,
+              replyCount: reply.replyCount,
+              stance: stanceValue,
+              themes,
+              mainTripleTermIds: reply.mainTripleTermIds,
+            };
+
             return (
-              <ReplyCard
+              <DebateCardView
                 key={reply.id}
-                id={reply.id}
-                body={reply.body}
-                createdAt={reply.createdAt}
-                replyCount={reply.replyCount}
-                author={reply.author}
-                stance={STANCE_MAP[stance]}
-                variant="default"
-                mainTripleTermId={mainTripleTermId}
-                mainTripleTermIds={reply.mainTripleTermIds}
-                sentimentData={mainTripleTermId ? sentimentMap?.[mainTripleTermId] ?? null : null}
+                post={postData}
+                stance={stanceValue}
+                sentimentData={sentimentData}
                 onBadgeClick={onBadgeClick}
-                themes={themes}
+                dense
               />
             );
           })

@@ -1,3 +1,5 @@
+// Composed display: ring + support/oppose bar + counts. Used by VoteSection + showcase.
+
 import { Skeleton } from "@/components/Skeleton/Skeleton";
 import { SentimentCircle } from "./SentimentCircle";
 import styles from "./SentimentBar.module.css";

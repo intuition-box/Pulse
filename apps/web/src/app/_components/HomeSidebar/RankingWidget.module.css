@@ -78,7 +78,7 @@
 .miniBar {
   display: flex;
   height: 4px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   overflow: hidden;
 }
 
@@ -174,11 +174,11 @@
   padding: var(--space-1) var(--space-2);
   border: none;
   border-radius: var(--radius-md);
-  background: var(--accent-blue);
+  background: var(--color-accent);
   font-family: inherit;
   font-size: var(--font-size-tiny);
   font-weight: 600;
-  color: white;
+  color: var(--text-inverse);
   cursor: pointer;
 }
 

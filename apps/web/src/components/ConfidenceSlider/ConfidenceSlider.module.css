@@ -163,26 +163,26 @@
 
 /* Thumb glow per direction */
 .wrapper[data-direction="support"] .slider::-webkit-slider-thumb {
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.3);
+  box-shadow: 0 0 0 3px var(--stance-supports-border);
 }
 .wrapper[data-direction="support"] .slider::-moz-range-thumb {
-  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.3);
+  box-shadow: 0 0 0 3px var(--stance-supports-border);
 }
 
 .wrapper[data-direction="oppose"] .slider::-webkit-slider-thumb {
-  box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.3);
+  box-shadow: 0 0 0 3px var(--stance-refutes-border);
 }
 .wrapper[data-direction="oppose"] .slider::-moz-range-thumb {
-  box-shadow: 0 0 0 3px rgba(251, 113, 133, 0.3);
+  box-shadow: 0 0 0 3px var(--stance-refutes-border);
 }
 
 /* Focus ring */
 .slider:focus-visible::-webkit-slider-thumb {
-  outline: 2px solid var(--accent-blue);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 .slider:focus-visible::-moz-range-thumb {
-  outline: 2px solid var(--accent-blue);
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 

@@ -1,43 +1,19 @@
-/* ════════════════════════════════════════════════════════════════════════════
-   APP SHELL — Fixed sidebar + content offset (mobile-first)
-   ════════════════════════════════════════════════════════════════════════════ */
-
-/* ── Sidebar: hidden on mobile ─────────────────────────────────────── */
-
 .sidebar {
   display: none;
 }
-
-/* ── Content: full-width on mobile ─────────────────────────────────── */
 
 .content {
   margin-left: 0;
   min-height: 100vh;
   background: var(--bg-page);
-  transition: margin-left 200ms ease;
+  transition: margin-left var(--transition-base);
 }
-
-/* ── Main column: topbar (sticky) + page content ─────────────────────── */
 
 .mainColumn {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   height: 100vh;
-}
-
-.topbar {
-  display: none;
-  position: sticky;
-  top: 0;
-  z-index: var(--z-sidebar);
-  flex-shrink: 0;
-  transition: opacity 200ms ease;
-}
-
-.topbarHidden {
-  opacity: 0;
-  pointer-events: none;
 }
 
 .main {
@@ -51,27 +27,18 @@
   display: block;
 }
 
-/* ── Homepage: page scrolls naturally ────────────────────────────────── */
-
-.contentHome .mainColumn {
-  overflow-y: visible;
-  height: auto;
-}
-
-/* ── Desktop ─────────────────────────────────────────────────────────── */
-
 @media (min-width: 769px) {
   .sidebar {
     display: block;
     position: fixed;
     left: 0;
     top: 0;
-    width: 240px;
+    width: var(--sidebar-left-width);
     height: 100vh;
     z-index: var(--z-sidebar);
     overflow-y: auto;
-    background: var(--bg-page);
-    transition: width 200ms ease;
+    background: var(--bg-inset);
+    transition: width var(--transition-base);
   }
 
   .sidebarCollapsed {
@@ -79,15 +46,11 @@
   }
 
   .content {
-    margin-left: 240px;
+    margin-left: var(--sidebar-left-width);
   }
 
   .contentCollapsed {
     margin-left: 64px;
-  }
-
-  .topbar {
-    display: block;
   }
 
   .bottomNav {
@@ -95,7 +58,6 @@
   }
 
   .main {
-    padding: var(--space-6) var(--space-8);
-    padding-bottom: 0;
+    padding: 0;
   }
 }

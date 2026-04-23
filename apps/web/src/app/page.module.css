@@ -1,40 +1,30 @@
-/* ── Page wrapper (positions inspector overlay) ──────────────────────── */
-
 .pageWrapper {
   position: relative;
 }
 
-/* ── Page layout ──────────────────────────────────────────────────────── */
-
 .page {
   display: grid;
   grid-template-columns: 1fr;
-  gap: var(--space-6);
+  gap: var(--space-4);
   max-width: 100%;
   margin: 0 auto;
   padding: var(--space-2) 0;
 }
 
-/* ── Inspector overlay (sits on top of sidebar) ──────────────────────── */
-
 .inspectorOverlay {
   position: fixed;
-  top: var(--topbar-height, 56px);
+  top: 0;
   right: 0;
   width: 420px;
-  height: calc(100vh - var(--topbar-height, 56px));
+  height: 100vh;
   z-index: var(--z-dropdown);
 }
-
-/* ── Feed column ─────────────────────────────────────────────────────── */
 
 .feedColumn {
   display: flex;
   flex-direction: column;
-  min-width: 0; /* prevent grid blowout */
+  min-width: 0;
 }
-
-/* ── Sort bar ────────────────────────────────────────────────────────── */
 
 .sortBar {
   display: flex;
@@ -43,172 +33,71 @@
   gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border-subtle);
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 
 .sortButtons {
   display: flex;
   gap: var(--space-1);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  min-width: 0;
+  scrollbar-width: none;
 }
 
-.sortBtn {
-  padding: var(--space-1) var(--space-2);
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  font-family: inherit;
-  font-size: var(--font-size-tiny);
-  font-weight: 500;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color var(--transition-fast), background var(--transition-fast);
-}
-
-.sortBtn:hover {
-  color: var(--text-primary);
-  background: var(--bg-hover);
-}
-
-.sortBtnActive {
-  color: var(--text-primary);
-  background: var(--bg-surface);
-  font-weight: 600;
-}
+.sortButtons::-webkit-scrollbar { display: none; }
 
 .themeSelect {
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-btn-irregular);
   background: var(--bg-surface);
   font-family: inherit;
   font-size: var(--font-size-tiny);
   color: var(--text-secondary);
   cursor: pointer;
-  max-width: 140px;
+  max-width: 120px;
+  min-width: 0;
 }
 
 .sortRight {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  flex-shrink: 0;
 }
 
-/* ── Root composer (inline at top of feed) ────────────────────────── */
+@media (max-width: 480px) {
+  .sortBar { gap: var(--space-1-5); padding: var(--space-2); }
+  .themeSelect { max-width: 100px; }
+}
 
 .rootComposer {
   padding: var(--space-3) var(--space-4);
-  margin-bottom: var(--space-4);
   border-bottom: 1px solid var(--border-subtle);
 }
-
-/* ── Feed list ───────────────────────────────────────────────────────── */
 
 .feedList {
   display: flex;
   flex-direction: column;
+  gap: var(--space-4);
   margin-top: var(--space-3);
 }
 
-/* ── Inline Composer (below feed thread) ─────────────────────────────── */
-
-.inlineComposer {
-  position: relative;
-  z-index: var(--z-dropdown);
-  padding: var(--space-3) var(--space-4);
-  padding-left: 52px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-/* ── Stance picker (appears after clicking Reply) ────────────────────── */
-
-.stancePicker {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-4);
-  padding-left: 52px;
-  border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-}
-
-.stancePickerLabel {
-  font-size: var(--font-size-small);
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-
-.stanceBtn {
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-subtle);
-  background: transparent;
-  font-size: var(--font-size-small);
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.stanceBtnSupports {
-  color: var(--stance-supports-text);
-  border-color: var(--stance-supports-accent);
-}
-
-.stanceBtnSupports:hover {
-  background: color-mix(in srgb, var(--stance-supports-accent) 15%, transparent);
-}
-
-.stanceBtnRefutes {
-  color: var(--stance-refutes-text);
-  border-color: var(--stance-refutes-accent);
-}
-
-.stanceBtnRefutes:hover {
-  background: color-mix(in srgb, var(--stance-refutes-accent) 15%, transparent);
-}
-
-.stanceBtnCancel {
-  margin-left: auto;
-  padding: var(--space-1);
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: var(--font-size-small);
-  line-height: 1;
-}
-
-.stanceBtnCancel:hover {
-  color: var(--text-primary);
-}
-
-/* ── Load more button ────────────────────────────────────────────────── */
-
-.loadMore {
-  padding: var(--space-2) 0;
-  border: none;
-  background: none;
-  font-family: inherit;
-  font-size: var(--font-size-small);
-  color: var(--color-accent);
-  font-weight: 500;
-  cursor: pointer;
-  text-align: center;
-}
-
-.loadMore:hover {
-  text-decoration: underline;
-}
-
-.loadMore:disabled {
-  opacity: 0.5;
-  cursor: default;
-  text-decoration: none;
-}
-
-/* ── Desktop ─────────────────────────────────────────────────────────── */
-
 @media (min-width: 769px) {
   .page {
-    grid-template-columns: 1fr 320px;
-    padding: var(--space-4) 0;
+    grid-template-columns: 1fr var(--sidebar-right-width);
+    gap: 0;
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .feedColumn {
+    max-width: var(--feed-max-width);
+    width: 100%;
+    margin: 0 auto;
+    padding: var(--space-4) var(--space-6);
   }
 }

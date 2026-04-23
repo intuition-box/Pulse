@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Flame, MessageSquare } from "lucide-react";
 
 import { ThemeBadge } from "@/components/ThemeBadge/ThemeBadge";
+import { Label } from "@/components/Label/Label";
 import type { TrendingPost } from "@/app/HomePageClient";
 import type { SentimentMap } from "@/hooks/useSentimentBatch";
 import styles from "./TrendingScroll.module.css";
@@ -16,13 +17,16 @@ function truncate(text: string, maxLen: number) {
 
 const MIN_PARTICIPANTS = 1;
 const MAX_CARDS = 6;
+const MAX_CARDS_COMPACT = 3;
 
 type HotDebatesProps = {
   posts: TrendingPost[];
   sentimentMap: SentimentMap;
+  variant?: "scroll" | "compact";
 };
 
-export function HotDebates({ posts, sentimentMap }: HotDebatesProps) {
+export function HotDebates({ posts, sentimentMap, variant = "scroll" }: HotDebatesProps) {
+  const limit = variant === "compact" ? MAX_CARDS_COMPACT : MAX_CARDS;
   const hotPosts = useMemo(() => {
     return posts
       .filter((p) => {
@@ -35,23 +39,47 @@ export function HotDebates({ posts, sentimentMap }: HotDebatesProps) {
         const sb = sentimentMap[b.mainTripleTermId!]!;
         return Math.abs(sa.supportPct - 50) - Math.abs(sb.supportPct - 50);
       })
-      .slice(0, MAX_CARDS);
-  }, [posts, sentimentMap]);
+      .slice(0, limit);
+  }, [posts, sentimentMap, limit]);
 
   if (hotPosts.length === 0) return null;
 
+  const isCompact = variant === "compact";
+
   return (
-    <section className={styles.section}>
-      <h2 className={styles.title}>
-        <Flame size={16} />
-        Hot Debates
-      </h2>
-      <div className={styles.scroll}>
+    <section className={`${styles.section} ${isCompact ? styles.sectionCompact : ""}`}>
+      {isCompact ? (
+        <Label size="sm" as="h3" className={styles.titleCompact}>
+          Hot debates
+        </Label>
+      ) : (
+        <h2 className={styles.title}>
+          <Flame size={16} />
+          Hot Debates
+        </h2>
+      )}
+      <div className={isCompact ? styles.compactList : styles.scroll}>
         {hotPosts.map((post) => {
           const s = sentimentMap[post.mainTripleTermId!]!;
           const supportPct = Math.round(s.supportPct);
           const opposePct = 100 - supportPct;
           const isHot = s.supportPct >= 45 && s.supportPct <= 55;
+
+          if (isCompact) {
+            const stanceClass =
+              s.supportPct > 55 ? styles.sup :
+              s.supportPct < 45 ? styles.ref :
+              "";
+            const voteCount = s.totalParticipants;
+            return (
+              <Link key={post.id} href={`/posts/${post.id}`} className={`${styles.compactCard} ${stanceClass}`}>
+                <p className={styles.compactBody}>{truncate(post.body, 90)}</p>
+                <div className={styles.compactMeta}>
+                  {voteCount} {voteCount === 1 ? "vote" : "votes"} · {post.replyCount} {post.replyCount === 1 ? "reply" : "replies"}
+                </div>
+              </Link>
+            );
+          }
 
           return (
             <Link key={post.id} href={`/posts/${post.id}`} className={styles.card}>
@@ -62,7 +90,6 @@ export function HotDebates({ posts, sentimentMap }: HotDebatesProps) {
               </div>
               <p className={styles.body}>{truncate(post.body, 100)}</p>
 
-              {/* Ratio bar */}
               <div className={styles.ratioBar}>
                 <div className={styles.ratioSupport} style={{ width: `${supportPct}%` }} />
                 <div className={styles.ratioOppose} />
@@ -72,7 +99,6 @@ export function HotDebates({ posts, sentimentMap }: HotDebatesProps) {
                 <span className={styles.pctOppose}>{opposePct}%</span>
               </div>
 
-              {/* Footer */}
               <span className={styles.replies}>
                 {isHot && <Flame size={12} className={styles.hotIcon} />}
                 <MessageSquare size={12} />

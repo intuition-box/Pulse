@@ -5,12 +5,12 @@
   height: 100vh;
   position: sticky;
   top: 0;
-  background: var(--sidebar-bg, var(--bg-muted));
-  border-right: 1px solid var(--sidebar-border, var(--border-default));
-  padding: var(--space-5) 0;
+  background: var(--bg-inset);
+  border-right: 1px solid var(--border-subtle);
+  padding: var(--space-4) 0;
   overflow-x: hidden;
   overflow-y: auto;
-  transition: width 200ms ease;
+  transition: width var(--transition-base);
 }
 
 /* ── Logo ───────────────────────────────────────────────────────────────── */
@@ -18,35 +18,25 @@
 .logo {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: 0 var(--space-5);
-  margin-bottom: var(--space-8);
+  justify-content: center;
+  padding: 0 var(--space-3);
+  margin-bottom: var(--space-6);
   text-decoration: none;
   color: var(--text-primary);
 }
 
-.logoMark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: var(--radius-md);
-  background: var(--color-accent);
-  color: var(--text-inverse);
-  font-family: var(--font-display);
-  font-size: var(--font-size-small);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  flex-shrink: 0;
-}
-
 .logoText {
   font-family: var(--font-display);
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-large);
   font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.2;
+  line-height: 1;
+  letter-spacing: 0.14em;
+}
+
+.collapsed .logoText {
+  font-size: var(--font-size-logo-xl);
+  letter-spacing: 0;
 }
 
 /* ── Nav links ──────────────────────────────────────────────────────────── */
@@ -54,43 +44,44 @@
 .nav {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  padding: 0 var(--space-3);
+  gap: 1px;
+  padding: 0 var(--space-2);
 }
 
 .navLink {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2-5) var(--space-3);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-small);
+  gap: var(--space-2-5);
+  padding: 9px var(--space-2-5);
+  border-radius: var(--radius-btn-irregular);
+  font-size: var(--font-size-nav);
   font-weight: 500;
-  color: var(--sidebar-link-text, var(--text-secondary));
+  color: var(--text-secondary);
   text-decoration: none;
   transition: color var(--transition-fast), background var(--transition-fast);
 }
 
 .navLink:hover {
-  background: var(--sidebar-link-hover-bg, var(--bg-hover));
+  background: var(--bg-surface-hover);
   color: var(--text-primary);
 }
 
 .navLinkActive {
-  background: var(--sidebar-link-active-bg, rgba(37, 99, 235, 0.08));
-  color: var(--sidebar-link-active-text, var(--color-accent));
+  background: var(--color-accent-dim);
+  color: var(--color-accent);
   font-weight: 600;
 }
 
 .navLinkActive:hover {
-  background: var(--sidebar-link-hover-bg, var(--bg-hover));
+  background: var(--color-accent-dim);
+  color: var(--color-accent);
 }
 
 .navIcon {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
   flex-shrink: 0;
-  opacity: 0.6;
+  opacity: 0.7;
 }
 
 .navLinkActive .navIcon {
@@ -104,31 +95,53 @@
 }
 
 .footer {
-  padding: var(--space-4) var(--space-5);
-  border-top: 1px solid var(--sidebar-border, var(--border-subtle));
-  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+  margin-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2-5);
 }
 
-.networkBadge {
-  display: inline-flex;
+.connectBtn {
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-2);
-  padding: var(--space-1-5) var(--space-3);
-  border-radius: var(--radius-full);
-  font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  background: transparent;
-  border: 1px solid var(--border-subtle);
+  width: 100%;
+  padding: 9px var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-btn-irregular);
+  background: var(--color-accent);
+  color: var(--text-inverse);
+  font-family: var(--font-sans);
+  font-size: var(--font-size-tiny);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
-.networkDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--stance-supports-accent);
+.connectBtn:hover {
+  background: var(--color-accent-hover);
+}
+
+.connectBtnActive {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+}
+
+.connectBtnActive:hover {
+  background: var(--bg-surface-hover);
+  border-color: var(--color-accent);
+}
+
+.connectBtnLabel {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 /* ── Toggle button ─────────────────────────────────────────────────────── */
@@ -137,11 +150,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   margin: 0 auto var(--space-2);
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-btn-irregular);
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
@@ -151,11 +164,11 @@
 
 .toggleBtn:hover {
   color: var(--text-primary);
-  background: var(--bg-hover);
+  background: var(--bg-surface-hover);
 }
 
 .collapsed .toggleBtn {
-  background: var(--bg-hover);
+  background: var(--bg-surface-hover);
   border: 1px solid var(--border-subtle);
 }
 
@@ -177,5 +190,5 @@
 
 .collapsed .navLink {
   justify-content: center;
-  padding: var(--space-2-5);
+  padding: 9px;
 }

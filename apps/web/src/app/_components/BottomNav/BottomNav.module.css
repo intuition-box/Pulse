@@ -23,7 +23,7 @@
   min-width: 44px;
   min-height: 44px;
   padding: var(--space-1-5) var(--space-3);
-  font-size: 0.625rem;
+  font-size: var(--font-size-mono-sm);
   font-weight: 500;
   letter-spacing: 0.02em;
   color: var(--text-muted);
@@ -43,7 +43,7 @@
   background: var(--color-accent);
   opacity: 0;
   transform: translateX(-50%) scale(0);
-  transition: opacity 300ms var(--ease-spring), transform 300ms var(--ease-spring);
+  transition: opacity var(--transition-slow-duration) var(--ease-spring), transform var(--transition-slow-duration) var(--ease-spring);
 }
 
 .tab:hover {
@@ -63,7 +63,7 @@
 .tabIcon {
   width: 24px;
   height: 24px;
-  transition: transform 300ms var(--ease-spring);
+  transition: transform var(--transition-slow-duration) var(--ease-spring);
 }
 
 .tabActive .tabIcon {

@@ -3,22 +3,20 @@
 .wrapper {
   display: grid;
   grid-template-columns: 1fr;
-  transition: grid-template-columns 250ms ease;
-  min-height: calc(100vh - var(--topbar-height, 56px));
-  margin: calc(-1 * var(--space-4));
+  transition: grid-template-columns var(--transition-base);
+  min-height: 100vh;
 }
 
 .wrapperOpen {
   grid-template-columns: 1fr;
   height: auto;
-  min-height: calc(100vh - var(--topbar-height, 56px));
+  min-height: 100vh;
   overflow: visible;
 }
 
 .content {
   min-width: 0;
   overflow-y: auto;
-  padding: var(--space-4);
 }
 
 .panelSlot {
@@ -30,22 +28,12 @@
 /* ── Desktop ─────────────────────────────────────────────────────────── */
 
 @media (min-width: 769px) {
-  .wrapper {
-    /* Cancel parent main padding so panel is edge-to-edge */
-    margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-8));
-  }
-
   .wrapperOpen {
     grid-template-columns: 1fr 420px;
     /* Lock height so each column scrolls independently */
-    height: calc(100vh - var(--topbar-height, 56px));
+    height: 100vh;
     min-height: auto;
     overflow: hidden;
-  }
-
-  .content {
-    /* Re-apply the main padding on the content side only */
-    padding: var(--space-6) var(--space-8);
   }
 
   .panelSlot {

@@ -46,12 +46,12 @@
 }
 
 .tripleSummary:hover {
-  color: var(--accent-blue);
+  color: var(--color-accent);
 }
 
 .expandIcon {
   flex-shrink: 0;
-  font-size: 0.65rem;
+  font-size: var(--font-size-mono-md);
   color: var(--text-muted);
   transition: transform var(--transition-fast);
 }
@@ -81,8 +81,8 @@
   display: inline-flex;
   padding: 0 var(--space-1-5);
   border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--accent-blue) 12%, transparent);
-  color: var(--accent-blue);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
   font-size: var(--font-size-2xs);
   font-weight: 600;
   line-height: 1.6;
@@ -153,8 +153,8 @@
 }
 
 .editBtn:hover {
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .nestedRow {
@@ -196,7 +196,7 @@
 }
 
 .editInput:focus {
-  border-color: var(--accent-blue);
+  border-color: var(--color-accent);
 }
 
 .editResults {
@@ -218,7 +218,7 @@
 }
 
 .editResultRow:hover {
-  background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
 }
 
 .editResultLabel {
@@ -272,7 +272,7 @@
   border-top: 1px dashed var(--border-default);
   margin-top: var(--space-1);
   padding-top: var(--space-1);
-  color: var(--accent-blue);
+  color: var(--color-accent);
 }
 
 .editResultMetrics {

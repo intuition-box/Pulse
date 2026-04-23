@@ -37,7 +37,7 @@
   width: 20px;
   height: 20px;
   border-radius: var(--radius-full);
-  font-size: 0.7rem;
+  font-size: var(--font-size-2xs);
   line-height: 1;
   z-index: 1;
 }

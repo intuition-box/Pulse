@@ -11,6 +11,7 @@ type ThumbVoteProps = {
   busyDirection?: "support" | "oppose" | null;
   disabled?: boolean;
   size?: "sm" | "md";
+  variant?: "button" | "inline";
 };
 
 export function ThumbVote({
@@ -22,8 +23,9 @@ export function ThumbVote({
   busyDirection = null,
   disabled = false,
   size = "sm",
+  variant = "button",
 }: ThumbVoteProps) {
-  const iconSize = size === "sm" ? 14 : 18;
+  const iconSize = variant === "inline" ? 11 : size === "sm" ? 14 : 18;
   const [bouncing, setBouncing] = useState<"support" | "oppose" | null>(null);
   const prevBusy = useRef(busy);
   const prevDirection = useRef(userDirection);
@@ -52,7 +54,7 @@ export function ThumbVote({
   }
 
   return (
-    <div className={`${styles.wrapper} ${styles[size]}`}>
+    <div className={`${styles.wrapper} ${styles[size]} ${variant === "inline" ? styles.inline : ""}`}>
       <button
         type="button"
         className={btnClass("support")}

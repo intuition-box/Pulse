@@ -128,7 +128,17 @@ export default async function HomePage() {
       .map((r) => [r.parentPostId!, r._max.createdAt]),
   );
 
-  // 4. Themes with post counts
+  // 4. Global stats (posts + replies, plus 24h deltas)
+  // eslint-disable-next-line react-hooks/purity
+  const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const [totalPosts, totalReplies, postsLast24h, repliesLast24h] = await Promise.all([
+    prisma.post.count({ where: { parentPostId: null } }),
+    prisma.post.count({ where: { parentPostId: { not: null } } }),
+    prisma.post.count({ where: { parentPostId: null, createdAt: { gte: since24h } } }),
+    prisma.post.count({ where: { parentPostId: { not: null }, createdAt: { gte: since24h } } }),
+  ]);
+
+  // 5. Themes with post counts
   const themesRaw = await prisma.theme.findMany({
     select: {
       slug: true,
@@ -184,6 +194,12 @@ export default async function HomePage() {
       feed={feed}
       themes={themes}
       loadMoreReplies={loadMoreReplies}
+      stats={{
+        posts: totalPosts,
+        replies: totalReplies,
+        postsDelta: postsLast24h,
+        repliesDelta: repliesLast24h,
+      }}
     />
   );
 }

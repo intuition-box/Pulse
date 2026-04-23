@@ -76,7 +76,6 @@ export default async function PostPage({ params }: PostPageProps) {
 
   const breadcrumbs = await getPostBreadcrumbs(post.id);
 
-  // Batch queries instead of N+1
   const replyIds = post.replies.map(r => r.id);
 
   const [nestedCounts] = await Promise.all([
@@ -114,6 +113,7 @@ export default async function PostPage({ params }: PostPageProps) {
         id: post.id,
         body: post.body,
         createdAt: post.createdAt.toISOString(),
+        stance: post.stance ?? null,
         tripleLinks: linkedTriples,
       }}
       themes={post.postThemes.map((pt) => pt.theme)}

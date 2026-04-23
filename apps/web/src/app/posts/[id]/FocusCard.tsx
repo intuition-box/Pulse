@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import type { ReactNode } from "react";
 import { Plus, Loader2 } from "lucide-react";
 
-import { ProtocolBadge } from "@/components/ProtocolBadge/ProtocolBadge";
 import { ThemeBadge } from "@/components/ThemeBadge/ThemeBadge";
 import { ThemePicker } from "@/components/ThemePicker/ThemePicker";
 
@@ -18,19 +17,21 @@ type FocusCardProps = {
     body: string;
     tripleLinks: { termId: string; role: string }[];
   };
+  stance?: "SUPPORTS" | "REFUTES" | null;
   themes: ThemeItem[];
   onAddTheme?: (theme: ThemeItem) => Promise<boolean>;
   onLinkAtom?: (atom: { id: string; label: string }) => void;
   onCreateTheme?: (name: string) => void;
   isAddingTheme?: boolean;
   addThemeError?: string | null;
-  onOpenInspector: () => void;
+  onOpenInspector?: () => void;
   thumbSlot?: ReactNode;
   children?: ReactNode;
 };
 
 export function FocusCard({
   post,
+  stance,
   themes,
   onAddTheme,
   onLinkAtom,
@@ -41,6 +42,10 @@ export function FocusCard({
   thumbSlot,
   children,
 }: FocusCardProps) {
+  const stanceClass =
+    stance === "SUPPORTS" ? styles.cardSupports :
+    stance === "REFUTES" ? styles.cardRefutes :
+    styles.cardNeutral;
   const [showPicker, setShowPicker] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
 
@@ -68,7 +73,7 @@ export function FocusCard({
   }
 
   return (
-    <section className={styles.card}>
+    <section className={`${styles.card} ${stanceClass}`}>
       <div className={styles.themeRow}>
         {themes.map((t) => (
           <ThemeBadge key={t.slug} slug={t.slug}>{t.name}</ThemeBadge>
@@ -102,13 +107,13 @@ export function FocusCard({
           </div>
         )}
       </div>
-      <p className={styles.body}>{post.body}</p>
+      <h1 className={styles.body}>{post.body}</h1>
       {thumbSlot}
       {children}
-      {post.tripleLinks.length > 0 && (
-        <ProtocolBadge onClick={onOpenInspector} className={styles.badgePosition}>
-          INSPECTOR
-        </ProtocolBadge>
+      {onOpenInspector && post.tripleLinks.length > 0 && (
+        <button type="button" className={styles.structureLink} onClick={onOpenInspector}>
+          View structure &rarr;
+        </button>
       )}
     </section>
   );

@@ -1,0 +1,112 @@
+.thread {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.composerSlot {
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.composerReplyWrap {
+  margin-top: 8px;
+}
+
+.composerSlot textarea {
+  min-height: 48px;
+}
+
+.repliesZone {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subRepliesZone {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Replies indented + rounded L-bend connector linking each to parent. */
+.replyWrap {
+  position: relative;
+  padding-left: 34px;
+}
+
+/* Rounded L — vertical comes from parent, curves into the card. */
+.replyWrap::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: -8px;
+  width: 20px;
+  height: 32px;
+  border: 0 solid var(--border-hover);
+  border-left-width: 1.5px;
+  border-bottom-width: 1.5px;
+  border-bottom-left-radius: 12px;
+  pointer-events: none;
+}
+
+/* Vertical continuation below the bend — hidden on last reply so the line stops. */
+.replyWrap:not([data-last="true"])::after {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 12px;
+  bottom: -8px;
+  width: 1.5px;
+  background: var(--border-hover);
+  pointer-events: none;
+}
+
+.showMore {
+  align-self: flex-start;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono-sm);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-left: 34px;
+  margin-top: var(--space-1);
+  transition: color var(--transition-fast);
+}
+
+.showMore:hover {
+  color: var(--text-primary);
+}
+
+.showMore:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 768px) {
+  .replyWrap {
+    padding-left: 22px;
+  }
+  .replyWrap::before {
+    left: 10px;
+    width: 14px;
+  }
+  .replyWrap:not([data-last="true"])::after {
+    left: 10px;
+  }
+  .showMore {
+    margin-left: 22px;
+  }
+}

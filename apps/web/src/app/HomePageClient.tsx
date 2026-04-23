@@ -1,14 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HotDebates } from "@/app/_components/TrendingScroll/TrendingScroll";
-import { FeedThread, type ReplyTarget } from "@/app/_components/FeedPost/FeedThread";
+import { DebateThread, type ReplyTarget } from "@/app/_components/DebateThread/DebateThread";
+import { StatsBar } from "@/app/_components/StatsBar/StatsBar";
 import { HomeSidebar } from "@/app/_components/HomeSidebar/HomeSidebar";
 import { RightPanel } from "@/app/_components/RightPanel/RightPanel";
 import { Sheet } from "@/app/_components/Sheet/Sheet";
 import { useIsMobile } from "@/app/_components/RightPanel/useIsMobile";
+import { InlineComposer } from "@/app/_components/InlineComposer/InlineComposer";
 import { TripleInspector } from "@/components/TripleInspector/TripleInspector";
+import { Chip } from "@/components/Chip/Chip";
 import { EmptyState } from "@/components/EmptyState/EmptyState";
 import { WeekVoteBanner } from "@/app/_components/HomeSidebar/WeekVote";
 import { useComposerFlow } from "@/features/post/ExtractionWorkspace/hooks/useComposerFlow";
@@ -94,60 +97,22 @@ function sortFeed(posts: FeedPostData[], sort: FeedSort): FeedPostData[] {
   }
 }
 
+export type PulseStats = {
+  posts: number;
+  replies: number;
+  postsDelta?: number;
+  repliesDelta?: number;
+};
+
 type HomePageClientProps = {
   trending: TrendingPost[];
   feed: FeedPostData[];
   themes: ThemeSummary[];
   loadMoreReplies: LoadMoreRepliesFn;
+  stats: PulseStats;
 };
 
-/* ── Inline Composer (isolated to re-mount via key) ──────────────────── */
-
-function InlineComposerBlock({
-  target,
-  onClose,
-  onPublishSuccess,
-  onCreateTheme,
-}: {
-  target: ReplyTarget;
-  onClose: () => void;
-  onPublishSuccess: (postId: string) => void;
-  onCreateTheme: (name: string) => Promise<{ slug: string; name: string } | null>;
-}) {
-  const [selectedThemes, setSelectedThemes] = useState(target.themes);
-  const composerFlow = useComposerFlow({
-    themes: selectedThemes,
-    parentPostId: target.postId,
-    parentMainTripleTermId: target.mainTripleTermId,
-    onPublishSuccess,
-    autoOpen: true,
-    onClose,
-  });
-
-  useEffect(() => {
-    composerFlow.flow.setStance(target.stance);
-  }, [target.stance, composerFlow.flow.setStance]);
-
-  return (
-    <ComposerBlock
-      composerFlow={composerFlow}
-      themeSlot={
-        <ThemeRow
-          selected={selectedThemes}
-          onChange={setSelectedThemes}
-          min={1}
-          onCreateTheme={onCreateTheme}
-        />
-      }
-      extraDisabled={selectedThemes.length === 0}
-      extraDisabledHint={selectedThemes.length === 0 ? labels.selectAtLeastOneTheme : undefined}
-    />
-  );
-}
-
-/* ── Home Page Component ─────────────────────────────────────────────── */
-
-export function HomePageClient({ trending, feed, themes, loadMoreReplies }: HomePageClientProps) {
+export function HomePageClient({ trending, feed, themes, loadMoreReplies, stats }: HomePageClientProps) {
   const router = useRouter();
   const { addToast } = useToast();
   const isMobile = useIsMobile();
@@ -243,15 +208,13 @@ export function HomePageClient({ trending, feed, themes, loadMoreReplies }: Home
   function composerSlot(postId: string) {
     if (!replyTarget || replyTarget.postId !== postId) return null;
     return (
-      <div className={styles.inlineComposer}>
-        <InlineComposerBlock
-          key={postId}
-          target={replyTarget}
-          onClose={() => setReplyTarget(null)}
-          onPublishSuccess={handlePublishSuccess}
-          onCreateTheme={handleCreateTheme}
-        />
-      </div>
+      <InlineComposer
+        key={postId}
+        target={replyTarget}
+        onClose={() => setReplyTarget(null)}
+        onPublishSuccess={handlePublishSuccess}
+        onCreateTheme={handleCreateTheme}
+      />
     );
   }
 
@@ -269,15 +232,23 @@ export function HomePageClient({ trending, feed, themes, loadMoreReplies }: Home
     <div className={styles.pageWrapper}>
       <div className={styles.page}>
         <div className={styles.feedColumn}>
+          <h1 className="sr-only">PULSE feed</h1>
           {isMobile && <WeekVoteBanner />}
-          <HotDebates posts={trending} sentimentMap={sentimentMap} />
+          {isMobile && <HotDebates posts={trending} sentimentMap={sentimentMap} />}
+
+          <StatsBar
+            posts={stats.posts}
+            replies={stats.replies}
+            postsDelta={stats.postsDelta}
+            repliesDelta={stats.repliesDelta}
+          />
 
           {/* Root composer — always visible at top of feed */}
           <div ref={rootComposerRef} className={styles.rootComposer}>
             <ComposerBlock
               composerFlow={rootComposerFlow}
               hideHeader
-              placeholder="Start a debate"
+              placeholder="Drop a claim worth debating…"
               themeSlot={
                 <ThemeRow
                   selected={selectedThemes}
@@ -295,13 +266,15 @@ export function HomePageClient({ trending, feed, themes, loadMoreReplies }: Home
           <div className={styles.sortBar}>
             <div className={styles.sortButtons}>
               {(Object.keys(SORT_LABELS) as FeedSort[]).map((key) => (
-                <button
+                <Chip
                   key={key}
-                  className={`${styles.sortBtn} ${sort === key ? styles.sortBtnActive : ""}`}
+                  tone="accent"
+                  size="sm"
+                  active={sort === key}
                   onClick={() => setSort(key)}
                 >
                   {SORT_LABELS[key]}
-                </button>
+                </Chip>
               ))}
             </div>
             {themes.length > 0 && (
@@ -325,15 +298,15 @@ export function HomePageClient({ trending, feed, themes, loadMoreReplies }: Home
               <EmptyState title={themeFilter ? "No posts in this theme." : "No posts yet. Start a debate!"} />
             ) : (
               sortedFeed.map((post) => (
-                <FeedThread
+                <DebateThread
                   key={post.id}
                   post={post}
                   onBadgeClick={handleBadgeClick}
                   onReply={handleReply}
                   activeReplyMap={activeReplyMap}
                   composerSlot={composerSlot}
-                  loadMoreReplies={loadMoreReplies}
                   sentimentMap={sentimentMap}
+                  loadMoreReplies={loadMoreReplies}
                   onNewTripleIds={(ids) => setExtraTripleIds((prev) => [...prev, ...ids])}
                 />
               ))
@@ -341,7 +314,7 @@ export function HomePageClient({ trending, feed, themes, loadMoreReplies }: Home
           </div>
         </div>
 
-        <HomeSidebar themes={themes} />
+        <HomeSidebar themes={themes} trending={trending} sentimentMap={sentimentMap} />
       </div>
 
       {/* Desktop inspector — overlays the sidebar */}

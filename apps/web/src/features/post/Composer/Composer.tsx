@@ -5,7 +5,6 @@ import { Badge } from "@/components/Badge/Badge";
 import type { ReactNode } from "react";
 import type { Stance } from "@/features/post/ExtractionWorkspace/extraction";
 
-import { InfoHint } from "@/components/InfoHint/InfoHint";
 import { labels } from "@/lib/vocabulary";
 import styles from "./Composer.module.css";
 
@@ -46,6 +45,30 @@ const STATUS_TONE: Record<string, "neutral" | "success" | "warning" | "danger"> 
   FAILED: "danger",
 };
 
+type HintArgs = {
+  message: string | null;
+  walletConnected: boolean;
+  extraDisabled?: boolean;
+  extraDisabledHint?: string;
+  inputText: string;
+  contextDirty: boolean;
+};
+
+function computeHint({
+  message,
+  walletConnected,
+  extraDisabled,
+  extraDisabledHint,
+  inputText,
+  contextDirty,
+}: HintArgs): string {
+  if (message) return message;
+  if (!walletConnected) return labels.connectWalletToAnalyze;
+  if (extraDisabled && extraDisabledHint && inputText.length > 0) return extraDisabledHint;
+  if (contextDirty) return labels.contentChangedWarning;
+  return labels.composerHint;
+}
+
 export function Composer({
   stance,
   inputText,
@@ -64,11 +87,45 @@ export function Composer({
   hideHeader,
   placeholder,
 }: ComposerProps) {
-  const actionLabel = contextDirty ? "Re-submit" : "Submit";
+  const actionLabel = contextDirty ? "Re-publish" : "Publish";
   const disabled = busy || !walletConnected || !!extraDisabled;
 
+  const hint = computeHint({
+    message,
+    walletConnected,
+    extraDisabled,
+    extraDisabledHint,
+    inputText,
+    contextDirty,
+  });
+  const showHint = !!message || !walletConnected || !!extracting || contextDirty;
+  const showCharCount = inputText.length > 0;
+  const showCancel = hideHeader && (inputText.length > 0 || busy || !!extracting);
+
+  const stanceClass =
+    stance === "SUPPORTS" ? styles.composerSupports :
+    stance === "REFUTES" ? styles.composerRefutes :
+    "";
+
+  const textareaEl = (
+    <div className={styles.textareaWrap}>
+      <textarea
+        className={styles.textarea}
+        value={inputText}
+        maxLength={200}
+        onChange={(e) => onInputChange(e.target.value)}
+        placeholder={placeholder ?? "Write your text"}
+      />
+      {showCharCount && (
+        <span className={`${styles.charCount} ${inputText.length >= 200 ? styles.charCountLimit : ""}`}>
+          {inputText.length}/200
+        </span>
+      )}
+    </div>
+  );
+
   return (
-    <div className={styles.composer}>
+    <div className={`${styles.composer} ${stanceClass}`}>
       {!hideHeader && (
         <div className={styles.header}>
           <div className={styles.headerLeft}>
@@ -89,52 +146,31 @@ export function Composer({
         </div>
       )}
 
-      {themeSlot && <div className={styles.themeSlot}>{themeSlot}</div>}
-
-      <div className={styles.textareaWrap}>
-        <textarea
-          className={`${styles.textarea} ${stance === "SUPPORTS" ? styles.textareaSupports : stance === "REFUTES" ? styles.textareaRefutes : ""}`}
-          value={inputText}
-          maxLength={200}
-          onChange={(e) => onInputChange(e.target.value)}
-          placeholder={placeholder ?? "Write your text"}
-        />
-        <span className={`${styles.charCount} ${inputText.length >= 200 ? styles.charCountLimit : ""}`}>
-          {inputText.length}/200
-        </span>
+      <div className={styles.head}>
+        <span className={styles.avatar} aria-hidden="true" />
+        <div className={styles.headInput}>{textareaEl}</div>
       </div>
-      {message
-        ? <InfoHint variant="warning">{message}</InfoHint>
-        : <InfoHint variant="tip">{labels.composerHint}</InfoHint>
-      }
 
-      <div className={styles.footer}>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={onExtract}
-          disabled={disabled}
-        >
-          {extracting ? (
-            <>
-              <span className={styles.spinner} aria-hidden="true" />
-              {labels.analyzingStatus}
-            </>
-          ) : (
-            actionLabel
+      <div className={styles.foot}>
+        {themeSlot && <div className={styles.footThemes}>{themeSlot}</div>}
+        <div className={styles.footActions}>
+          {showHint && <span className={styles.footerHint}>{hint}</span>}
+          {showCancel && (
+            <button type="button" className={styles.cancelBtn} onClick={onClose}>
+              Cancel
+            </button>
           )}
-        </Button>
-        {contextDirty && (
-          <span className={styles.warning}>
-            {labels.contentChangedWarning}
-          </span>
-        )}
-        {!walletConnected && (
-          <span className={styles.warning}>{labels.connectWalletToAnalyze}</span>
-        )}
-        {walletConnected && extraDisabled && extraDisabledHint && inputText.length > 0 && (
-          <span className={styles.warning}>{extraDisabledHint}</span>
-        )}
+          <Button variant="primary" size="sm" onClick={onExtract} disabled={disabled}>
+            {extracting ? (
+              <>
+                <span className={styles.spinner} aria-hidden="true" />
+                {labels.analyzingStatus}
+              </>
+            ) : (
+              actionLabel
+            )}
+          </Button>
+        </div>
       </div>
     </div>
   );

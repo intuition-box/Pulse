@@ -1,16 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { MessageSquare } from "lucide-react";
 import { Button } from "@/components/Button/Button";
 import { EmptyState } from "@/components/EmptyState/EmptyState";
-import { ProtocolBadge } from "@/components/ProtocolBadge/ProtocolBadge";
 import { useComposerFlow } from "@/features/post/ExtractionWorkspace/hooks/useComposerFlow";
 import { ComposerBlock } from "@/features/post/ExtractionWorkspace/ComposerBlock";
 import { useToast } from "@/components/Toast/ToastContext";
-import { TripleTooltip } from "@/components/TripleTooltip/TripleTooltip";
-
+import { DebateCardView, type DebatePostData } from "@/app/_components/DebateThread/DebateCardView";
+import { useSentimentBatch } from "@/hooks/useSentimentBatch";
 import styles from "./page.module.css";
 
 type ThemePageClientProps = {
@@ -24,6 +21,8 @@ type ThemePageClientProps = {
     body: string;
     createdAt: string;
     replyCount: number;
+    user: { displayName: string | null; address: string; avatar: string | null };
+    themes: { slug: string; name: string }[];
     mainTripleTermIds: string[];
   }[];
 };
@@ -46,9 +45,14 @@ export function ThemePageClient({ theme, rootPosts }: ThemePageClientProps) {
     return rootPosts.filter((p) => p.body.toLowerCase().includes(q));
   }, [rootPosts, searchQuery]);
 
+  const tripleIds = useMemo(
+    () => filteredPosts.flatMap((p) => (p.mainTripleTermIds[0] ? [p.mainTripleTermIds[0]] : [])),
+    [filteredPosts],
+  );
+  const { data: sentimentMap } = useSentimentBatch(tripleIds);
+
   return (
     <div className={styles.page}>
-      {/* Header */}
       <section className={styles.header}>
         <div className={styles.headerTop}>
           <div>
@@ -74,10 +78,8 @@ export function ThemePageClient({ theme, rootPosts }: ThemePageClientProps) {
         </div>
       </section>
 
-      {/* Composer inline */}
-      <ComposerBlock composerFlow={composerFlow} className={styles.composerSection} placeholder="Start a debate" />
+      <ComposerBlock composerFlow={composerFlow} className={styles.composerSection} placeholder="Drop a claim worth debating…" />
 
-      {/* Posts grid */}
       <section className={styles.postsSection}>
         {filteredPosts.length === 0 ? (
           <EmptyState
@@ -91,27 +93,27 @@ export function ThemePageClient({ theme, rootPosts }: ThemePageClientProps) {
             }
           />
         ) : (
-          <div className={styles.postsGrid}>
-            {filteredPosts.map((post) => (
-              <Link key={post.id} href={`/posts/${post.id}`} className={styles.postCard}>
-                <p className={styles.postBody}>{post.body}</p>
-                <div className={styles.postFooter}>
-                  <span className={styles.postReplies}>
-                    <MessageSquare size={12} style={{ verticalAlign: "-1px", marginRight: "3px" }} />
-                    {post.replyCount}
-                  </span>
-                  <span className={styles.postDate}>
-                    {new Date(post.createdAt).toLocaleDateString()}
-                  </span>
-                  {post.mainTripleTermIds.length > 0 && (
-                    <TripleTooltip tripleTermIds={post.mainTripleTermIds}>
-                      <ProtocolBadge>⛓</ProtocolBadge>
-                    </TripleTooltip>
-                  )}
-                  <span className={styles.openThread}>Open →</span>
-                </div>
-              </Link>
-            ))}
+          <div className={styles.postsList}>
+            {filteredPosts.map((post) => {
+              const tripleId = post.mainTripleTermIds[0];
+              const sentimentData = tripleId ? sentimentMap?.[tripleId] ?? null : null;
+              const postData: DebatePostData = {
+                id: post.id,
+                body: post.body,
+                createdAt: post.createdAt,
+                user: post.user,
+                replyCount: post.replyCount,
+                themes: post.themes,
+                mainTripleTermIds: post.mainTripleTermIds,
+              };
+              return (
+                <DebateCardView
+                  key={post.id}
+                  post={postData}
+                  sentimentData={sentimentData}
+                />
+              );
+            })}
           </div>
         )}
       </section>

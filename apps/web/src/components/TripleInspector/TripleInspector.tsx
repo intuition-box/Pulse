@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { ConnectedThumbVote } from "@/components/ThumbVote";
-import { TripleInline } from "@/components/TripleInline/TripleInline";
+import { NestedTripleInline } from "@/components/TripleInline/NestedTripleInline";
 import { MiniTree } from "@/components/MiniTree/MiniTree";
-import { ReplyCard } from "@/app/_components/ReplyCard/ReplyCard";
+import { DebateCardView, type DebatePostData } from "@/app/_components/DebateThread/DebateCardView";
 import { fetchJsonWithTimeout } from "@/lib/net/fetchWithTimeout";
 
 import styles from "./TripleInspector.module.css";
@@ -95,12 +95,6 @@ type TripleInspectorProps = {
   miniTreeData?: MiniTreeData;
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-function fmt(value?: number | null) {
-  if (value === null || value === undefined) return "\u2014";
-  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(value);
-}
-
 function fmtId(id: string) {
   if (id.length <= 12) return id;
   return `${id.slice(0, 6)}\u2026${id.slice(-4)}`;
@@ -113,25 +107,19 @@ type ClaimBlockData = {
   predicate: string;
   object: string;
   counterTermId: string | null;
-  marketCap: number | null;
-  holders: number | null;
-  shares: number | null;
+  subjectNested?: NestedTripleData | null;
+  objectNested?: NestedTripleData | null;
 };
 
 function ClaimBlock({ data, nested }: { data: ClaimBlockData; nested?: boolean }) {
   return (
     <div className={nested ? styles.nestedClaimItem : styles.claimItem}>
-      <TripleInline subject={data.subject} predicate={data.predicate} object={data.object} nested={nested} wrap />
+      <NestedTripleInline data={data} wrap nested={nested} />
       <ConnectedThumbVote
         tripleTermId={data.termId}
         counterTermId={data.counterTermId ?? null}
         size="sm"
       />
-      <div className={styles.metricsGrid}>
-        <div className={styles.metricCard}><span className={styles.metricLabel}>Staked</span><span className={styles.metricValue}>{fmt(data.marketCap)}</span></div>
-        <div className={styles.metricCard}><span className={styles.metricLabel}>Participants</span><span className={styles.metricValue}>{fmt(data.holders)}</span></div>
-        <div className={styles.metricCard}><span className={styles.metricLabel}>Shares</span><span className={styles.metricValue}>{fmt(data.shares)}</span></div>
-      </div>
     </div>
   );
 }
@@ -142,22 +130,24 @@ function RelatedSection({ title, posts }: { title: string; posts: RelatedPost[] 
     <section className={styles.section}>
       <h3 className={styles.sectionTitle}>{title} <span className={styles.count}>({posts.length})</span></h3>
       <div className={styles.postsList}>
-        {posts.map((p) => (
-          <div key={p.id} className={styles.relatedPostItem}>
-            <ReplyCard
-              id={p.id}
-              body={p.body}
-              createdAt={p.createdAt}
-              replyCount={p.replyCount}
-              author={p.author}
-              variant="compact"
-              mainTripleTermId={p.mainTripleTermId}
-            />
-            {p.sharedAtom && (
-              <p className={styles.sharedTopicHint}>Shared: {p.sharedAtom}</p>
-            )}
-          </div>
-        ))}
+        {posts.map((p) => {
+          const postData: DebatePostData = {
+            id: p.id,
+            body: p.body,
+            createdAt: p.createdAt,
+            user: p.author,
+            replyCount: p.replyCount,
+            mainTripleTermIds: [p.mainTripleTermId],
+          };
+          return (
+            <div key={p.id} className={styles.relatedPostItem}>
+              <DebateCardView post={postData} dense />
+              {p.sharedAtom && (
+                <p className={styles.sharedTopicHint}>Shared: {p.sharedAtom}</p>
+              )}
+            </div>
+          );
+        })}
       </div>
     </section>
   );

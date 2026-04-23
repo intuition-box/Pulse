@@ -7,7 +7,7 @@ datasource db {
   provider = "postgresql"
 }
 
-/// User represents a Debate Market identity
+/// User represents a PULSE identity
 /// 1 address = 1 user (simplified from multi-wallet approach)
 model User {
   id             String       @id @default(uuid())

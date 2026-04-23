@@ -29,6 +29,7 @@ type PostPageClientProps = {
     id: string;
     body: string;
     createdAt: string;
+    stance: "SUPPORTS" | "REFUTES" | null;
     tripleLinks: {
       termId: string;
       role: "MAIN" | "SUPPORTING";
@@ -69,23 +70,26 @@ export function PostPageClient({ post, themes: initialThemes, breadcrumbs, repli
     return { slug: result.slug, name: result.name };
   }, [createTheme]);
 
-  const handleAddTheme = useCallback(async (theme: { slug: string; name: string }) => {
-    const result = await addThemeToPost({
+  const addThemeAndNotify = useCallback(async (params: Parameters<typeof addThemeToPost>[0]) => {
+    const result = await addThemeToPost(params);
+    if (!result) return false;
+    setThemes((prev) => [...prev, { slug: result.slug, name: result.name }]);
+    addToast("Theme added", "success");
+    return true;
+  }, [addThemeToPost, addToast]);
+
+  const handleAddTheme = useCallback((theme: { slug: string; name: string }) =>
+    addThemeAndNotify({
       postId: post.id,
       themeSlug: theme.slug,
       themeName: theme.name,
       mainTripleTermId: parentMainTripleTermId,
-    });
-    if (result) {
-      setThemes((prev) => [...prev, { slug: result.slug, name: result.name }]);
-      addToast("Theme added", "success");
-      return true;
-    }
-    return false;
-  }, [addThemeToPost, post.id, parentMainTripleTermId, addToast]);
+    }),
+    [addThemeAndNotify, post.id, parentMainTripleTermId],
+  );
 
   const handleLinkAtom = useCallback(async (atom: { id: string; label: string }) => {
-    const addResult = await addThemeToPost({
+    await addThemeAndNotify({
       postId: post.id,
       themeSlug: "",
       themeName: atom.label,
@@ -93,26 +97,18 @@ export function PostPageClient({ post, themes: initialThemes, breadcrumbs, repli
       atomTermId: atom.id,
       createThemeInDb: true,
     });
-    if (addResult) {
-      setThemes((prev) => [...prev, { slug: addResult.slug, name: addResult.name }]);
-      addToast("Theme added", "success");
-    }
-  }, [addThemeToPost, post.id, parentMainTripleTermId, addToast]);
+  }, [addThemeAndNotify, post.id, parentMainTripleTermId]);
 
   const handleCreateAndAddTheme = useCallback(async (name: string) => {
     const result = await createTheme(name, undefined, null);
     if (!result) return;
-    const addResult = await addThemeToPost({
+    await addThemeAndNotify({
       postId: post.id,
       themeSlug: result.slug,
       themeName: result.name,
       mainTripleTermId: parentMainTripleTermId,
     });
-    if (addResult) {
-      setThemes((prev) => [...prev, { slug: addResult.slug, name: addResult.name }]);
-      addToast("Theme added", "success");
-    }
-  }, [createTheme, addThemeToPost, post.id, parentMainTripleTermId, addToast]);
+  }, [createTheme, addThemeAndNotify, post.id, parentMainTripleTermId]);
 
   const composerFlow = useComposerFlow({
     themes: replyThemes,
@@ -184,6 +180,7 @@ export function PostPageClient({ post, themes: initialThemes, breadcrumbs, repli
 
           <FocusCard
             post={post}
+            stance={post.stance}
             themes={themes}
             onAddTheme={handleAddTheme}
             onLinkAtom={handleLinkAtom}

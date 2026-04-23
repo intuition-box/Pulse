@@ -6,8 +6,8 @@
   /* ── Typography ─────────────────────────────────────────────────────────── */
 
   /* Font families */
-  --font-display: "Space Grotesk", "Manrope", -apple-system, sans-serif;
-  --font-sans: "Manrope", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: var(--font-display-next), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-sans: var(--font-sans-next), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "JetBrains Mono", "IBM Plex Mono", "Roboto Mono", Consolas, monospace;
 
   /* Font weights */
@@ -30,6 +30,19 @@
   --font-size-sm: var(--font-size-small);
   --font-size-lg: var(--font-size-medium);
   --font-size-xl: var(--font-size-large);
+
+  /* Mono-specific sizes (dense monospaced labels) */
+  --font-size-micro: 7px;         /* diamond glyphs, tiny inline markers */
+  --font-size-mono-xs: 9px;       /* stats labels */
+  --font-size-mono-sm: 10px;      /* chips, thumb counts */
+  --font-size-mono-md: 10.5px;    /* rail titles, theme pills */
+
+  /* Off-grid sizes (semantic single-use) */
+  --font-size-nav: 13px;          /* sidebar nav link density */
+  --font-size-stat-md: 17px;      /* stats bar mobile value */
+  --font-size-logo-xl: 22px;      /* collapsed sidebar logo */
+  --font-size-page-title: 1.5rem; /* 24px — page titles */
+  --font-size-hero: 2rem;         /* 32px — dialog hero states */
 
   /* Line heights */
   --line-height-tight: 1.3;
@@ -103,14 +116,32 @@
 
 
   /* ── Border radius ─────────────────────────────────────────────────────── */
+  /* Asymmetric radius is the brand signature. All general-purpose radius
+     tokens (sm/md/lg/xl) point to irregular versions so existing components
+     inherit the look without per-file changes. */
 
-  --radius-xs: 3px;
-  --radius-sm: 4px;
-  --radius-md: 6px;
+  --radius-card-irregular: 10px 3px 10px 3px;
+  --radius-card-irregular-rev: 3px 10px 3px 10px;
+  --radius-btn-irregular: 5px 2px 5px 2px;
+  --radius-pill-irregular: 4px 2px 4px 2px;
+  --radius-avatar-irregular: 6px 2px 6px 2px;
+  --radius-modal-irregular: 14px 4px 14px 4px;
+
+  --radius-xs: 3px 1px 3px 1px;
+  --radius-sm: var(--radius-pill-irregular);
+  --radius-md: var(--radius-btn-irregular);
   --radius-base: var(--radius-md);
-  --radius-lg: 8px;
-  --radius-xl: 12px;
+  --radius-lg: 7px 2px 7px 2px;
+  --radius-xl: var(--radius-card-irregular);
+  --radius-2xl: var(--radius-modal-irregular);
   --radius-full: 999px;
+
+
+  /* ── Layout ────────────────────────────────────────────────────────────── */
+
+  --sidebar-left-width: 200px;
+  --sidebar-right-width: 320px;
+  --feed-max-width: 820px;
 
 
   /* ── Transitions ───────────────────────────────────────────────────────── */
@@ -118,6 +149,10 @@
   --transition-fast: 150ms ease;
   --transition-base: 200ms ease;
   --transition-slow: 300ms ease;
+
+  /* Duration-only tokens (for components with custom easing) */
+  --transition-base-duration: 200ms;
+  --transition-slow-duration: 300ms;
 
 
   /* ── Shadows (tuned for dark backgrounds) ────────────────────────────── */
@@ -128,6 +163,8 @@
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
   --shadow-xl: 0 12px 32px rgba(0, 0, 0, 0.6);
   --shadow-button: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-popover: 0 4px 12px rgba(0, 0, 0, 0.15);
+  --shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.4);
 
 
   /* ── Overlays ──────────────────────────────────────────────────────────── */
@@ -151,13 +188,12 @@
 
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-out-back: cubic-bezier(0.34, 1.3, 0.64, 1);
+
+
   /* ── Gamification colors ───────────────────────────────────────────── */
 
   --color-gold: #FFD700;
 }
-
-
-/* MODE TOKENS — removed (dead: --mode-accent, --mode-accent-strong) */
 
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -166,54 +202,56 @@
 
 :root {
   /* Backgrounds — dark zinc */
-  --bg-page: #0C0C0E;
-  --bg-page-gradient: radial-gradient(ellipse at 50% 0%, #0F0F14 0%, #0C0C0E 70%);
-  --bg-surface: #18181B;
-  --bg-surface-hover: #1F1F23;
+  --bg-page: #08080A;
+  --bg-page-gradient: #08080A;
+  --bg-surface: #131317;
+  --bg-surface-hover: #1A1A1F;
   --bg-muted: #27272A;
   --bg-subtle: #1C1C1F;
-  --bg-hover: #2C2C30;
-  --bg-inset: #111113;
+  --bg-hover: #24242A;
+  --bg-inset: #0E0E11;
   --bg-tertiary: #202023;
 
   /* Text — light zinc scale */
   --text-primary: #FAFAFA;
   --text-secondary: #A1A1AA;
-  --text-muted: #71717A;
+  --text-muted: #6E6E76;
   --text-inverse: #09090B;
 
   /* Borders — dark zinc */
   --border-default: #2C2C30;
-  --border-subtle: #1C1C1F;
+  --border-subtle: #1F1F24;
   --border-hover: #3F3F46;
   --border-strong: #D4D4D8;
   --border-focus: #3B82F6;
 
-  /* Accent / Brand — Peach */
-  --color-accent: #EBA464;
-  --color-accent-hover: #D4894A;
-  --color-accent-light: #F2C892;
+  /* Skeleton shimmer — amber 3% alpha, precomputed (color-mix is Safari 16.2+ only) */
+  --bg-shimmer-amber: rgba(245, 158, 11, 0.03);
 
-  /* Stance — Supports (teal) */
-  --stance-supports-bg: rgba(26, 144, 162, 0.12);
-  --stance-supports-border: rgba(26, 144, 162, 0.3);
-  --stance-supports-text: #1a90a2;
-  --stance-supports-accent: #1a90a2;
+  /* Accent / Brand */
+  --color-accent: #CFC2A3;
+  --color-accent-hover: #B8AB8C;
+  --color-accent-light: #DDD3BB;
+  --color-accent-dim: rgba(207, 194, 163, 0.08);
+  --color-accent-glow: rgba(207, 194, 163, 0.18);
 
-  /* Stance — Refutes (rose) */
-  --stance-refutes-bg: rgba(190, 50, 74, 0.12);
-  --stance-refutes-border: rgba(190, 50, 74, 0.3);
-  --stance-refutes-text: #be324a;
-  --stance-refutes-accent: #be324a;
+  /* Stance — Supports (vibrant cyan) */
+  --stance-supports-bg: rgba(34, 211, 238, 0.12);
+  --stance-supports-border: rgba(34, 211, 238, 0.3);
+  --stance-supports-text: #22D3EE;
+  --stance-supports-accent: #22D3EE;
+
+  /* Stance — Refutes (vibrant rose) */
+  --stance-refutes-bg: rgba(244, 63, 94, 0.12);
+  --stance-refutes-border: rgba(244, 63, 94, 0.3);
+  --stance-refutes-text: #F43F5E;
+  --stance-refutes-accent: #F43F5E;
 
   /* Stance — Contested (violet, 45-55% votes) */
   --stance-contested-bg: rgba(167, 139, 250, 0.12);
   --stance-contested-border: rgba(167, 139, 250, 0.3);
   --stance-contested-text: #A78BFA;
   --stance-contested-accent: #7C3AED;
-
-  /* Accent — blue (data cues, on-chain markers) */
-  --accent-blue: #60A5FA;
 
   /* System semantic */
   --color-error: var(--color-red-500);
@@ -227,16 +265,16 @@
   /* Sidebar */
   --sidebar-bg: var(--bg-inset);
   --sidebar-border: #222225;
-  --sidebar-link-active-bg: color-mix(in srgb, var(--accent-blue) 12%, transparent);
-  --sidebar-link-active-text: var(--accent-blue);
-  --sidebar-link-active-border: var(--accent-blue);
+  --sidebar-link-active-bg: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  --sidebar-link-active-text: var(--color-accent);
+  --sidebar-link-active-border: var(--color-accent);
   --sidebar-link-text: var(--text-secondary);
   --sidebar-link-hover-bg: var(--bg-surface-hover);
 
-  /* Top bar */
-  --topbar-bg: rgba(24, 24, 27, 0.85);
-  --topbar-border: #2C2C30;
-  --topbar-height: 56px;
+  /* Top bar (legacy fallbacks for components still referencing these vars) */
+  --topbar-bg: transparent;
+  --topbar-border: transparent;
+  --topbar-height: 0px;
 }
 
 
@@ -245,12 +283,23 @@
    ──────────────────────────────────────────────────────────────────────────── */
 
 :root {
+  /* ── Debate card ──────────────────────────────────────────────────────── */
+
+  --card-radius-debate: var(--radius-card-irregular);
+  --card-radius-debate-inner: var(--radius-card-irregular-rev);
+  --font-size-debate-body: 0.9375rem;     /* 15px */
+  --font-size-debate-focus: 1.125rem;     /* 18px */
+  --font-size-debate-focus-lg: 1.25rem;   /* 20px */
+  --bg-debate-card: #1A1A1D;
+  --bg-debate-replies: #141416;
+  --bg-debate-card-hover: #1E1E22;
+
   /* ── Cards ─────────────────────────────────────────────────────────────── */
 
   --card-bg: var(--bg-surface);
   --card-border: var(--border-default);
   --card-border-hover: var(--border-hover);
-  --card-radius: var(--radius-md);
+  --card-radius: var(--radius-card-irregular);
   --card-padding: var(--spacing-card);
   --card-shadow: none;
   --card-shadow-hover: none;
@@ -279,7 +328,7 @@
 
   /* Button sizing */
   --button-padding: 0.75rem 1.5rem;
-  --button-radius: var(--radius-sm);
+  --button-radius: var(--radius-btn-irregular);
   --button-font-weight: var(--font-weight-semibold);
 
 
@@ -287,7 +336,7 @@
 
   /* Stance badge */
   --badge-stance-padding: 0.35rem 0.75rem;
-  --badge-stance-radius: var(--radius-sm);
+  --badge-stance-radius: var(--radius-pill-irregular);
   --badge-stance-font-size: var(--font-size-tiny);
   --badge-stance-font-weight: var(--font-weight-semibold);
   --badge-stance-letter-spacing: var(--letter-spacing-wider);
@@ -300,15 +349,15 @@
   --input-text: var(--text-primary);
   --input-placeholder: var(--text-muted);
   --input-padding: 0.75rem 1rem;
-  --input-radius: var(--radius-sm);
+  --input-radius: var(--radius-btn-irregular);
 
 
   /* ── Focus rings ───────────────────────────────────────────────────────── */
 
-  --focus-ring-color: #3B82F6;
+  --focus-ring-color: var(--color-accent);
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
-  --focus-ring-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+  --focus-ring-shadow: 0 0 0 3px var(--color-accent-glow);
 }
 
 
@@ -391,10 +440,10 @@
 }
 
 
-/* Focus visible (accessibility) */
+/* Focus visible (accessibility) — subtle ring matching brand */
 *:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
+  outline: 1px solid var(--color-accent);
+  outline-offset: 1px;
 }
 
 
@@ -425,7 +474,7 @@ body {
   font-size: var(--font-size-base);
   line-height: var(--line-height-relaxed);
   color: var(--text-primary);
-  background: var(--bg-page-gradient);
+  background: var(--bg-page);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }

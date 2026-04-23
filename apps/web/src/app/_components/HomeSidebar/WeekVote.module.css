@@ -1,93 +1,83 @@
-/* ── Week Vote widget ────────────────────────────────────────────────── */
+/* ── Week Vote widget (sidebar desktop) ──────────────────────────────── */
 
 .widget {
+  padding: 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-card-irregular-rev);
+  text-align: center;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 10px;
 }
 
 .imageWrap {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 3 / 3;
-  border-radius: var(--radius-lg);
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-md);
+  background: var(--bg-inset);
   overflow: hidden;
-  background: var(--bg-subtle);
 }
 
 .imageWrap img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
 .question {
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--font-size-base);
-  font-weight: 700;
+  font-style: italic;
+  font-size: var(--font-size-small);
+  font-weight: 600;
   color: var(--text-primary);
-  text-align: center;
   line-height: 1.3;
+}
+
+.meter {
+  display: flex;
+  height: 5px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--bg-inset);
+}
+
+.meterA { background: var(--stance-supports-accent); height: 100%; }
+.meterB { background: var(--stance-refutes-accent); height: 100%; }
+
+.stats {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  font-family: var(--font-mono);
+  font-size: var(--font-size-mono-sm);
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
 }
 
 /* ── Buttons row ─────────────────────────────────────────────────────── */
 
 .buttons {
   display: flex;
-  gap: var(--space-2);
+  gap: 6px;
 }
 
-.voteBtn {
+.voteChip {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1-5);
-  padding: var(--space-2-5) var(--space-3);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font-family: var(--font-display);
-  font-size: var(--font-size-small);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast), opacity var(--transition-fast);
-  min-height: 40px;
-}
-
-.voteBtn:hover:not(:disabled) {
-  background: var(--bg-surface-hover);
-  border-color: var(--text-muted);
-}
-
-.voteBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.voteBtn[data-voted="true"] {
-  border-color: var(--accent-blue);
-  background: rgba(96, 165, 250, 0.1);
 }
 
 .colorDot {
-  width: 10px;
-  height: 10px;
-  border-radius: var(--radius-full);
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   flex-shrink: 0;
 }
 
-.colorDot[data-color="blue"] {
-  background: #0f1a2e;
-  border: 1px solid #1e3a6e;
-}
-
-.colorDot[data-color="gold"] {
-  background: #d4c48a;
-  border: 1px solid #f5e6b8;
-}
+.colorDot[data-color="blue"] { background: var(--stance-supports-accent); }
+.colorDot[data-color="gold"] { background: var(--color-gold); }
 
 /* ── Results bar ─────────────────────────────────────────────────────── */
 
@@ -107,17 +97,18 @@
 
 .barSegment {
   height: 100%;
+  /* Meter fill — custom cubic-bezier, intentionally out of token grid. */
   transition: width 600ms cubic-bezier(0.4, 0, 0.2, 1);
   min-width: 4px;
 }
 
 .barSegment[data-side="blue"] {
-  background: #1e3a6e;
+  background: var(--stance-supports-accent);
   border-radius: var(--radius-full) 0 0 var(--radius-full);
 }
 
 .barSegment[data-side="gold"] {
-  background: #f5e6b8;
+  background: var(--stance-refutes-accent);
   border-radius: 0 var(--radius-full) var(--radius-full) 0;
 }
 
@@ -179,10 +170,16 @@
 .bannerImage {
   width: 80px;
   flex-shrink: 0;
+  border: 0;
+  padding: 0;
   border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--bg-subtle);
   cursor: pointer;
+}
+
+.bannerImage:disabled {
+  cursor: default;
 }
 
 .bannerImage img {
@@ -258,6 +255,7 @@
   background: rgba(0, 0, 0, 0.85);
   cursor: pointer;
   padding: var(--space-4);
+  border: 0;
 }
 
 .imageOverlayImg {

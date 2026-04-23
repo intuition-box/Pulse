@@ -63,7 +63,7 @@
   align-items: center;
   gap: var(--space-1);
   font-family: var(--font-mono);
-  font-size: 0.5625rem;
+  font-size: var(--font-size-mono-xs);
   color: var(--text-muted);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -71,8 +71,8 @@
 
 .onchainCue::before {
   content: "\25C6";
-  font-size: 0.4375rem;
-  color: var(--accent-blue);
+  font-size: var(--font-size-micro);
+  color: var(--color-accent);
 }
 
 .loading,
@@ -103,7 +103,7 @@
 
 .tripleIndex {
   font-family: var(--font-mono);
-  font-size: 0.5625rem;
+  font-size: var(--font-size-mono-xs);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;

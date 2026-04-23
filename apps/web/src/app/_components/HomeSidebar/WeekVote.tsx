@@ -11,9 +11,10 @@ import { voteOnTriple } from "@/lib/intuition/intuitionVote";
 import { fetchJsonWithTimeout } from "@/lib/net/fetchWithTimeout";
 import { parseTxError } from "@/lib/getErrorMessage";
 import { useToast } from "@/components/Toast/ToastContext";
+import { Chip } from "@/components/Chip/Chip";
 import styles from "./WeekVote.module.css";
 
-/* ── Config (will be provided by user) ──────────────────────────────── */
+/* ── Config ─────────────────────────────────────────────────────────── */
 
 export type WeekVoteConfig = {
   question: string;
@@ -225,32 +226,38 @@ export function WeekVote({ config = WEEK_VOTE_CONFIG }: { config?: WeekVoteConfi
       <p className={styles.question}>{config.question}</p>
 
       {voted ? (
-        <Results
-          config={config}
-          counts={counts}
-          total={total}
-          pctA={pctA}
-          pctB={pctB}
-        />
+        <Results config={config} counts={counts} pctA={pctA} pctB={pctB} />
       ) : (
-        <div className={styles.buttons}>
-          <button
-            className={styles.voteBtn}
-            onClick={() => vote("a")}
-            disabled={busy || loading}
-          >
-            {busy ? <span className={styles.spinner} /> : <span className={styles.colorDot} data-color={config.optionA.color} />}
-            {config.optionA.label}
-          </button>
-          <button
-            className={styles.voteBtn}
-            onClick={() => vote("b")}
-            disabled={busy || loading}
-          >
-            {busy ? <span className={styles.spinner} /> : <span className={styles.colorDot} data-color={config.optionB.color} />}
-            {config.optionB.label}
-          </button>
-        </div>
+        <>
+          <div className={styles.meter}>
+            <div className={styles.meterA} style={{ width: `${pctA}%` }} />
+            <div className={styles.meterB} style={{ width: `${pctB}%` }} />
+          </div>
+          <div className={styles.stats}>
+            <span>{pctA}% {config.optionA.label} · {pctB}% {config.optionB.label}</span>
+            <span>{total} votes</span>
+          </div>
+          <div className={styles.buttons}>
+            <Chip
+              tone="supports"
+              size="md"
+              className={styles.voteChip}
+              onClick={() => vote("a")}
+              disabled={busy || loading}
+            >
+              {busy ? <span className={styles.spinner} /> : config.optionA.label}
+            </Chip>
+            <Chip
+              tone="refutes"
+              size="md"
+              className={styles.voteChip}
+              onClick={() => vote("b")}
+              disabled={busy || loading}
+            >
+              {busy ? <span className={styles.spinner} /> : config.optionB.label}
+            </Chip>
+          </div>
+        </>
       )}
     </div>
   );
@@ -276,12 +283,21 @@ function isDismissed(): boolean {
 export function WeekVoteBanner({ config = WEEK_VOTE_CONFIG }: { config?: WeekVoteConfig }) {
   const [dismissed, setDismissed] = useState(true); // start hidden to avoid flash
   const [imageExpanded, setImageExpanded] = useState(false);
-  const { voted, busy, loading, counts, total, pctA, pctB, vote } = useWeekVote(config);
+  const { voted, busy, loading, counts, pctA, pctB, vote } = useWeekVote(config);
   const imageSrc = useAtomImage(config.subjectAtomId);
 
   useEffect(() => {
     setDismissed(isDismissed());
   }, []);
+
+  useEffect(() => {
+    if (!imageExpanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setImageExpanded(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [imageExpanded]);
 
   if (dismissed) return null;
 
@@ -296,18 +312,29 @@ export function WeekVoteBanner({ config = WEEK_VOTE_CONFIG }: { config?: WeekVot
 
   return (
     <div className={styles.banner}>
-      <div className={styles.bannerImage} onClick={() => imageSrc && setImageExpanded(true)} role="button" tabIndex={0}>
+      <button
+        type="button"
+        className={styles.bannerImage}
+        onClick={() => imageSrc && setImageExpanded(true)}
+        aria-label="Open image"
+        disabled={!imageSrc}
+      >
         {imageSrc && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={imageSrc} alt={config.question} />
         )}
-      </div>
+      </button>
 
       {imageExpanded && imageSrc && (
-        <div className={styles.imageOverlay} onClick={() => setImageExpanded(false)} role="button" tabIndex={0}>
+        <button
+          type="button"
+          className={styles.imageOverlay}
+          onClick={() => setImageExpanded(false)}
+          aria-label="Close image"
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={imageSrc} alt={config.question} className={styles.imageOverlayImg} />
-        </div>
+        </button>
       )}
 
       <div className={styles.bannerContent}>
@@ -322,31 +349,29 @@ export function WeekVoteBanner({ config = WEEK_VOTE_CONFIG }: { config?: WeekVot
         </div>
 
         {voted ? (
-          <Results
-            config={config}
-            counts={counts}
-            total={total}
-            pctA={pctA}
-            pctB={pctB}
-          />
+          <Results config={config} counts={counts} pctA={pctA} pctB={pctB} />
         ) : (
           <div className={styles.buttons}>
-            <button
-              className={styles.voteBtn}
+            <Chip
+              tone="neutral"
+              size="md"
+              className={styles.voteChip}
               onClick={() => vote("a")}
               disabled={busy || loading}
             >
               {busy ? <span className={styles.spinner} /> : <span className={styles.colorDot} data-color={config.optionA.color} />}
               {config.optionA.label}
-            </button>
-            <button
-              className={styles.voteBtn}
+            </Chip>
+            <Chip
+              tone="neutral"
+              size="md"
+              className={styles.voteChip}
               onClick={() => vote("b")}
               disabled={busy || loading}
             >
               {busy ? <span className={styles.spinner} /> : <span className={styles.colorDot} data-color={config.optionB.color} />}
               {config.optionB.label}
-            </button>
+            </Chip>
           </div>
         )}
       </div>
@@ -359,13 +384,11 @@ export function WeekVoteBanner({ config = WEEK_VOTE_CONFIG }: { config?: WeekVot
 function Results({
   config,
   counts,
-  total,
   pctA,
   pctB,
 }: {
   config: WeekVoteConfig;
   counts: { a: number; b: number };
-  total: number;
   pctA: number;
   pctB: number;
 }) {

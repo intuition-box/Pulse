@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Compass, TrendingUp, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { Home, Compass, TrendingUp, ChevronsLeft, ChevronsRight, Wallet } from "lucide-react";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
 
 import { useSidebar } from "./SidebarContext";
 import styles from "./Sidebar.module.css";
@@ -24,9 +25,8 @@ export function Sidebar() {
 
   return (
     <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ""}`}>
-      <Link href="/" className={styles.logo}>
-        <span className={styles.logoMark}>DM</span>
-        {!collapsed && <span className={styles.logoText}>Debate Market</span>}
+      <Link href="/" className={styles.logo} aria-label="PULSE">
+        <span className={styles.logoText}>{collapsed ? "P" : "PULSE"}</span>
       </Link>
 
       <nav className={styles.nav}>
@@ -55,10 +55,37 @@ export function Sidebar() {
 
       {!collapsed && (
         <div className={styles.footer}>
-          <span className={styles.networkBadge}>
-            <span className={styles.networkDot} />
-            Intuition testnet
-          </span>
+          <ConnectButton.Custom>
+            {({ account, chain, openAccountModal, openConnectModal, mounted }) => {
+              const connected = mounted && account && chain;
+
+              if (!connected) {
+                return (
+                  <button
+                    type="button"
+                    onClick={openConnectModal}
+                    className={styles.connectBtn}
+                  >
+                    <Wallet size={14} />
+                    <span>Connect wallet</span>
+                  </button>
+                );
+              }
+
+              return (
+                <button
+                  type="button"
+                  onClick={openAccountModal}
+                  className={`${styles.connectBtn} ${styles.connectBtnActive}`}
+                >
+                  <Wallet size={14} />
+                  <span className={styles.connectBtnLabel}>
+                    {account.displayName}
+                  </span>
+                </button>
+              );
+            }}
+          </ConnectButton.Custom>
         </div>
       )}
     </aside>

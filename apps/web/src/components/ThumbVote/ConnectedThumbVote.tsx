@@ -32,6 +32,7 @@ type ConnectedThumbVoteProps = {
   counterTermId?: string | null;
   sentimentData?: SentimentData | null;
   size?: "sm" | "md";
+  variant?: "button" | "inline";
   onVoteSuccess?: () => void;
 };
 
@@ -42,6 +43,7 @@ export function ConnectedThumbVote({
   counterTermId = null,
   sentimentData = null,
   size = "sm",
+  variant = "button",
   onVoteSuccess,
 }: ConnectedThumbVoteProps) {
   const { isConnected, address } = useAccount();
@@ -249,6 +251,7 @@ export function ConnectedThumbVote({
       busyDirection={busyDirection}
       disabled={fallbackLoading}
       size={size}
+      variant={variant}
     />
   );
 }

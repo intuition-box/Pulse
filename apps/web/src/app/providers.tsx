@@ -13,7 +13,7 @@ import { ToastProvider } from "@/components/Toast/ToastContext";
 import { useSessionAuth } from "@/features/post/ExtractionWorkspace/hooks/useSessionAuth";
 
 const config = getDefaultConfig({
-  appName: "Debate Market",
+  appName: "PULSE",
   projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ?? "",
   chains: [intuitionTestnet],
   ssr: true,
