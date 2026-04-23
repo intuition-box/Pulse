@@ -83,7 +83,7 @@
 
 .user {
   align-self: flex-end;
-  background: var(--accent-blue);
+  background: var(--color-accent);
   color: var(--color-white);
 }
 
@@ -120,7 +120,7 @@
 }
 
 .input:focus {
-  border-color: var(--accent-blue);
+  border-color: var(--color-accent);
 }
 
 .input:disabled {
@@ -131,7 +131,7 @@
   padding: var(--space-2) var(--space-3);
   border: none;
   border-radius: var(--radius-sm);
-  background: var(--accent-blue);
+  background: var(--color-accent);
   color: var(--color-white);
   font-size: var(--font-size-small);
   font-weight: 500;
@@ -229,7 +229,7 @@
 }
 
 .searchRowClickable:hover {
-  background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
 }
 
 .detailsPlaceholder {
@@ -272,8 +272,8 @@
 }
 
 .quickActionChip:hover {
-  border-color: var(--accent-blue);
-  background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
 }
 
 .quickActionChip:disabled {

@@ -1,7 +1,14 @@
 .avatar {
   flex-shrink: 0;
-  border-radius: var(--radius-avatar-irregular);
   overflow: hidden;
+}
+
+.irregular { border-radius: var(--radius-avatar-irregular); }
+.circular { border-radius: 50%; }
+
+.xs {
+  width: 16px;
+  height: 16px;
 }
 
 .sm {

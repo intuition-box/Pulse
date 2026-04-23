@@ -68,7 +68,7 @@
 .tabButtonActive {
   color: var(--text-primary);
   font-weight: var(--font-weight-semibold);
-  border-bottom-color: var(--accent-blue);
+  border-bottom-color: var(--color-accent);
 }
 
 /* ── Tab panel ─────────────────────────────────────────────────────────── */
@@ -87,7 +87,7 @@
   gap: var(--space-3);
   padding: var(--space-2) var(--space-3);
   border-top: 1px solid var(--border-default);
-  border-left: 3px solid var(--accent-blue);
+  border-left: 3px solid var(--color-accent);
   border-radius: var(--radius-sm);
   background: var(--bg-surface);
   transition: background var(--transition-fast), border-left-color var(--transition-fast);
@@ -184,8 +184,8 @@
 }
 
 .linkedItemActive {
-  border-color: var(--accent-blue);
-  background: color-mix(in srgb, var(--accent-blue) 8%, transparent);
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 8%, transparent);
 }
 
 .linkedBody {
@@ -215,7 +215,7 @@
 
 .metricLabel {
   font-family: var(--font-mono);
-  font-size: 0.625rem;
+  font-size: var(--font-size-mono-sm);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -275,7 +275,7 @@
   width: 20px;
   height: 20px;
   border: 2px solid var(--border-default);
-  border-top-color: var(--accent-blue);
+  border-top-color: var(--color-accent);
   border-radius: var(--radius-full);
   animation: inspectorSpin 0.6s linear infinite;
 }

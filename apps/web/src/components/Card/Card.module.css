@@ -5,7 +5,7 @@
   background: var(--bg-surface);
   padding: var(--space-5);
   box-shadow: var(--shadow-sm);
-  transition: transform 200ms var(--ease-out-back), box-shadow 200ms ease;
+  transition: transform var(--transition-base-duration) var(--ease-out-back), box-shadow var(--transition-base-duration) ease;
 }
 
 .interactive {

@@ -13,6 +13,30 @@
 .sm .btn { font-size: var(--font-size-tiny); padding: 4px var(--space-2); gap: 4px; min-height: 26px; }
 .md .btn { font-size: var(--font-size-sm);   padding: 5px var(--space-2-5); gap: 6px; min-height: 30px; }
 
+/* Inline variant — no button chrome, just icon + count inline. Hover tints color only. */
+.inline.wrapper { gap: 8px; }
+.inline .btn {
+  padding: 0;
+  min-height: auto;
+  border: none;
+  background: none;
+  font-size: var(--font-size-mono-md);
+  gap: 3px;
+  color: var(--text-muted);
+  transition: color var(--transition-fast);
+}
+.inline .btn:hover:not(:disabled) {
+  background: none;
+  border-color: transparent;
+}
+.inline .btn:nth-child(1):hover:not(:disabled) { color: var(--stance-supports-text); }
+.inline .btn:nth-child(2):hover:not(:disabled) { color: var(--stance-refutes-text); }
+.inline .activeSupport { background: none; border: none; color: var(--stance-supports-text); }
+.inline .activeOppose  { background: none; border: none; color: var(--stance-refutes-text); }
+.inline .voteBounce { transform: scale(1.15); }
+.inline .voteBounce.activeSupport,
+.inline .voteBounce.activeOppose { background: none; }
+
 /* ── Button base ─────────────────────────────────────────────────────── */
 
 .btn {
@@ -102,7 +126,7 @@
   top: -4px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 0.625rem;
+  font-size: var(--font-size-mono-sm);
   font-weight: 700;
   opacity: 0;
   pointer-events: none;

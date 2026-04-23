@@ -35,7 +35,7 @@
 
 .sm {
   padding: 0.4rem 0.85rem;
-  font-size: 0.6875rem;
+  font-size: var(--font-size-2xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }

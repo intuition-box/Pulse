@@ -178,7 +178,7 @@
 
 .highlight {
   background: color-mix(in srgb, var(--color-sky-400) 20%, transparent);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   padding: 0 1px;
   transition: background var(--transition-fast);
 }
@@ -212,7 +212,7 @@
 .chatTabBtnActive {
   color: var(--text-primary);
   font-weight: var(--font-weight-semibold);
-  border-bottom-color: var(--accent-blue);
+  border-bottom-color: var(--color-accent);
 }
 
 

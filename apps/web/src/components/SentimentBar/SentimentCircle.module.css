@@ -23,7 +23,7 @@
 }
 
 .compact .compactNumber {
-  font-size: 10px;
+  font-size: var(--font-size-mono-sm);
 }
 
 .micro {
@@ -32,7 +32,24 @@
 }
 
 .micro .compactNumber {
-  font-size: 9px;
+  font-size: var(--font-size-mono-xs);
+}
+
+.tiny {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  position: relative;
+  display: inline-block;
+}
+
+/* Donut hole — masks the center using the surface bg color. */
+.tiny::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: var(--bg-surface);
 }
 
 .content {
@@ -52,7 +69,7 @@
 }
 
 .label {
-  font-size: 0.5625rem;
+  font-size: var(--font-size-mono-xs);
   font-weight: 500;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -65,7 +82,7 @@
   position: relative;
   z-index: 1;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--font-size-2xs);
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1;

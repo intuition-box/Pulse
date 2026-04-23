@@ -8,7 +8,7 @@
     90deg,
     var(--bg-inset) 25%,
     var(--border-default) 37%,
-    rgba(245, 158, 11, 0.03) 50%,
+    var(--bg-shimmer-amber) 50%,
     var(--border-default) 63%,
     var(--bg-inset) 75%
   );

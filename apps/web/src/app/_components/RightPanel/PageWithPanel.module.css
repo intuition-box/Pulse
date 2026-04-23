@@ -3,7 +3,7 @@
 .wrapper {
   display: grid;
   grid-template-columns: 1fr;
-  transition: grid-template-columns 250ms ease;
+  transition: grid-template-columns var(--transition-base);
   min-height: 100vh;
 }
 

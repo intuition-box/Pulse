@@ -10,7 +10,7 @@
   padding: var(--space-4) 0;
   overflow-x: hidden;
   overflow-y: auto;
-  transition: width 200ms ease;
+  transition: width var(--transition-base);
 }
 
 /* ── Logo ───────────────────────────────────────────────────────────────── */
@@ -18,36 +18,25 @@
 .logo {
   display: flex;
   align-items: center;
-  gap: var(--space-2-5);
+  justify-content: center;
   padding: 0 var(--space-3);
   margin-bottom: var(--space-6);
   text-decoration: none;
   color: var(--text-primary);
 }
 
-.logoMark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--radius-avatar-irregular);
-  background: var(--color-accent);
-  color: var(--text-inverse);
-  font-family: var(--font-display);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  flex-shrink: 0;
-}
-
 .logoText {
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: var(--font-size-large);
   font-weight: 700;
   color: var(--text-primary);
-  line-height: 1.2;
-  letter-spacing: -0.03em;
+  line-height: 1;
+  letter-spacing: 0.14em;
+}
+
+.collapsed .logoText {
+  font-size: var(--font-size-logo-xl);
+  letter-spacing: 0;
 }
 
 /* ── Nav links ──────────────────────────────────────────────────────────── */
@@ -65,7 +54,7 @@
   gap: var(--space-2-5);
   padding: 9px var(--space-2-5);
   border-radius: var(--radius-btn-irregular);
-  font-size: 13px;
+  font-size: var(--font-size-nav);
   font-weight: 500;
   color: var(--text-secondary);
   text-decoration: none;
@@ -126,7 +115,7 @@
   background: var(--color-accent);
   color: var(--text-inverse);
   font-family: var(--font-sans);
-  font-size: 12px;
+  font-size: var(--font-size-tiny);
   font-weight: 700;
   letter-spacing: -0.01em;
   cursor: pointer;

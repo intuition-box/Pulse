@@ -31,7 +31,7 @@
 .addButton {
   width: 32px;
   height: 32px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   border: 1px solid var(--border-default);
   background: var(--bg-surface);
   color: var(--text-secondary);
