@@ -1,36 +1,21 @@
-/* ── ThemeBadge — colored dot + label ─────────────────────────────────── */
+/* ── ThemeBadge — outlined mono pill, theme-colored ─────────────────── */
 
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 0.35em;
-  font-family: var(--font-sans);
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   line-height: 1.4;
   white-space: nowrap;
-  color: var(--text-secondary);
+  padding: 2px 8px;
+  border: 1px solid hsl(var(--theme-hue, 220) 55% 55% / 0.35);
+  background: hsl(var(--theme-hue, 220) 55% 55% / 0.06);
+  border-radius: var(--radius-pill-irregular);
+  color: hsl(var(--theme-hue, 220) 65% 72%);
 }
 
-.dot {
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: hsl(var(--theme-hue, 220) 65% 58%);
-}
-
-/* ── Sizes ───────────────────────────────────────────────────────────── */
-
-.sm {
-  font-size: var(--font-size-2xs);
-}
-
-.md {
-  font-size: var(--font-size-tiny);
-}
-
-.lg {
-  font-size: var(--font-size-small);
-}
+.sm { font-size: var(--font-size-mono-xs); }
+.md { font-size: var(--font-size-mono-md); }
+.lg { font-size: var(--font-size-2xs); }

@@ -11,16 +11,18 @@ type ThemeBadgeProps = {
 
 /** Deterministic hue from a string (0-360) using FNV-1a for better distribution. */
 function slugToHue(slug: string): number {
-  let h = 0x811c9dc5; // FNV offset basis
+  let h = 0x811c9dc5;
   for (let i = 0; i < slug.length; i++) {
     h ^= slug.charCodeAt(i);
-    h = Math.imul(h, 0x01000193); // FNV prime
+    h = Math.imul(h, 0x01000193);
   }
   return ((h >>> 0) % 360);
 }
 
 export function ThemeBadge({ size = "md", className, children, slug }: ThemeBadgeProps) {
-  const classes = [styles.badge, styles[size], className].filter(Boolean).join(" ");
+  const classes = [styles.badge, styles[size], className]
+    .filter(Boolean)
+    .join(" ");
   const hue = slug ? slugToHue(slug) : 220;
 
   return (
@@ -28,7 +30,6 @@ export function ThemeBadge({ size = "md", className, children, slug }: ThemeBadg
       className={classes}
       style={{ "--theme-hue": hue } as React.CSSProperties}
     >
-      <span className={styles.dot} aria-hidden />
       {children}
     </span>
   );
